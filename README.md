@@ -92,7 +92,7 @@ route → retrieve → judge
 
 
 ### 📌 Node 설명
-
+---
 - **route**
   - 질문 유형 분류 (창조과학 / 성경 / 일반)
   - 처리 전략 결정
@@ -118,7 +118,8 @@ route → retrieve → judge
 
 
 
-  ## 🔍 질의 처리 흐름 요약
+### 🔍  질의 처리 흐름 요약
+---
 
 1. 사용자 질문 입력
 2. LangGraph `route` 노드에서 질문 유형 분기
@@ -129,7 +130,7 @@ route → retrieve → judge
    - 불충분 → `rewrite` → 재검색 루프
 
    
----
+
 ## 🚀 실행 방법
 1. streamlit UI 실행
 ```
