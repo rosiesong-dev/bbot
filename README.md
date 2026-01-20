@@ -55,41 +55,41 @@ BeBot은 LangGraph를 사용하여 질문 처리 흐름을 **그래프 구조로
 
 ### 🔁 Graph Flow
 
-route → retrieve → judge  
-        ↓  
-      [resolved?]  
-     ↙    ↘  
-  generate  rewrite  
-   ↓     ↓  
-   END   retrieve  
-       ↓  
-       judge
+	route → retrieve → judge  
+	        ↓  
+	      [resolved?]  
+	     ↙    ↘  
+	  generate  rewrite  
+	   ↓     ↓  
+	   END   retrieve  
+	       ↓  
+	       judge
 
 
 ### 📌 Node 설명
 ---
-- **route**
-  - 질문 유형 분류 (창조과학 / 성경 / 일반)
-  - 처리 전략 결정
+	- route
+		- 질문 유형 분류 (창조과학 / 성경 / 일반)
+		- 처리 전략 결정
 
-- **retrieve**
-  - PostgreSQL + pgvector 기반 문서 검색
-  - 질문 임베딩과 문서 임베딩 유사도 계산
+	- retrieve	
+		- PostgreSQL + pgvector 기반 문서 검색
+		- 질문 임베딩과 문서 임베딩 유사도 계산
 
-- **judge**
-  - 검색 결과가 질문에 충분히 답변 가능한지 판단
-  - 기준: 관련성, 정보 충분성
+	- judge
+		- 검색 결과가 질문에 충분히 답변 가능한지 판단
+		- 기준: 관련성, 정보 충분성
 
-- **generate**
-  - 검색된 문서를 바탕으로 최종 답변 생성
-  - 성경적 세계관 + 창조과학 관점 반영
+	- generate
+		- 검색된 문서를 바탕으로 최종 답변 생성
+		- 성경적 세계관 + 창조과학 관점 반영
 
-- **rewrite**
-  - 질문이 모호하거나 검색 실패 시
-  - 질문을 더 명확하게 재작성
+	- rewrite
+		- 질문이 모호하거나 검색 실패 시
+		- 질문을 더 명확하게 재작성
 
-- **END**
-  - 답변 완료
+	- END
+		- 답변 완료
 
 
 
@@ -100,9 +100,8 @@ route → retrieve → judge
 2. LangGraph `route` 노드에서 질문 유형 분기
 3. `retrieve` 노드에서 관련 문서 검색
 4. `judge` 노드에서 답변 가능 여부 판단
-5. 
-   - 가능 → `generate` → 답변 출력
-   - 불충분 → `rewrite` → 재검색 루프
+5. 가능 → `generate` → 답변 출력
+	불충분 → `rewrite` → 재검색 루프
 
    
 
