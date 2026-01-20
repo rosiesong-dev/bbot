@@ -25,68 +25,49 @@ st.set_page_config(
 )
 
 
-
-
-# ==================== DB 체크 함수 ====================
-# DB 한 번만 생성 
-def table_exists(table_name: str) -> bool:
-    conn = psycopg2.connect(
+# ==================== DB 연결 함수 ====================
+def get_conn():
+    """DB 연결 생성"""
+    return psycopg2.connect(
         host=os.getenv("DB_HOST"),
         dbname=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
         port=os.getenv("DB_PORT")
     )
-    cur = conn.cursor()
 
-    cur.execute("""
-        SELECT EXISTS (
-            SELECT 1
-            FROM information_schema.tables
-            WHERE table_schema = 'public'
-              AND table_name = %s
-        );
-    """, (table_name,))
 
-    exists = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-    return exists
-
-if "db_ready" not in st.session_state:
-    print("✅ DB 체크 중")
-    if not table_exists("crawled_data"):
-        with st.spinner("DB 생성 중…"):
-            create_db("./extracted_texts")
-    st.session_state.db_ready = True
-    print("✅ DB 준비 완료")
+# ==================== DB 체크 함수 ====================
+def table_exists(table_name: str) -> bool:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name = %s
+                );
+            """, (table_name,))
+            return cur.fetchone()[0]
 
 
 def get_db():
     """DB 통계 가져오기"""
     try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST"),
-            dbname=os.getenv("DB_NAME"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            port=os.getenv("DB_PORT")
-        )
-        cur = conn.cursor()
-        
-        # 총 문서 수
-        cur.execute("SELECT COUNT(*) FROM crawled_data;")
-        total_docs = cur.fetchone()[0]
-        
-        # 고유 제목 수
-        cur.execute("SELECT COUNT(DISTINCT title) FROM crawled_data;")
-        unique_titles = cur.fetchone()[0]
-        
-        cur.close()
-        conn.close()
-        
-        return total_docs, unique_titles
-    except:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                # 총 문서 수
+                cur.execute("SELECT COUNT(*) FROM crawled_data;")
+                total_docs = cur.fetchone()[0]
+                
+                # 고유 제목 수
+                cur.execute("SELECT COUNT(DISTINCT title) FROM crawled_data;")
+                unique_titles = cur.fetchone()[0]
+                
+                return total_docs, unique_titles
+    except Exception as e:
+        print(f"DB 통계 조회 에러: {e}")
         return 0, 0
 
 
@@ -99,6 +80,16 @@ if "db_ready" not in st.session_state:
 
 if "show_workflow" not in st.session_state:
     st.session_state.show_workflow = False
+
+
+# DB 초기 체크
+if "db_ready" not in st.session_state:
+    print("✅ DB 체크 중")
+    if not table_exists("crawled_data"):
+        with st.spinner("DB 생성 중…"):
+            create_db("./extracted_texts")
+    st.session_state.db_ready = True
+    print("✅ DB 준비 완료")
 
 
 # ==================== 사이드바 ====================
@@ -265,7 +256,7 @@ if prompt := st.chat_input("Curious about creation science ✨"):
             try:
                 response = generate(prompt)
                 
-                # 워크플로우 단계 기록 (실제로는 로그에서 파싱 필요)
+                # 워크플로우 단계 기록
                 workflow_steps = [
                     "질문 라우팅 완료",
                     "벡터 검색 수행",
