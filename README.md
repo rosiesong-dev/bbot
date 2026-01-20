@@ -32,11 +32,11 @@ pip install -r requirements.txt
 ```
 UPSTAGE_API_KEY=<YOUR_UPSTAGE_API_KEY>
 UPSTAGE_BASE_URL=<YOUR_UPSTAGE_BASE_URL>
-DB_HOST=localhost
-DB_NAME=bbot_db
-DB_USER=rosie
-DB_PASSWORD=""
-DB_PORT=5433
+DB_HOST=os.getenv("DB_HOST")
+DB_NAME=os.getenv("DB_NAME")
+DB_USER=os.getenv("DB_USER")
+DB_PASSWORD=os.getenv("DB_PASSWORD")
+DB_PORT=os.getenv("DB_PORT")
 ```
 
 4.	PostgreSQL 및 pgvector 설치
