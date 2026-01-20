@@ -1,4 +1,3 @@
-# bbot - web 기반 RAG 
 import os
 import json
 from datetime import datetime
@@ -211,14 +210,14 @@ def route_question(state: GraphState) -> GraphState:
     ]
     
     route = "internal" if any(k in question for k in keywords) else "internal"
-    print(f"[Router] 선택된 경로: {route}")
+    print(f"[Router] 선택된 경로: {route}\n")
     
     return {**state, "route": route, "iteration": 0}
 
 
 def retrieve_documents(state: GraphState) -> GraphState:
     """문서 검색 노드"""
-    print("🤖 [Node: Retrieve] 벡터 검색 시작")
+    print("🤖 [Node: Retrieve] 벡터 검색 시작 \n\n")
     
     # 재작성된 질문이 있으면 사용, 없으면 원본 사용
     query = state.get("rewritten_question") or state["question"]
@@ -246,7 +245,7 @@ def retrieve_documents(state: GraphState) -> GraphState:
         print(f"\n[Doc {i}]")
         print(f"Title: {d['title']}")
         print(f"URL: {d['url']}")
-        print(f"Content (preview): {d['content'][:300]}")  # 앞 300자만
+        print(f"Content (preview): {d['content'][:300]}\n")  # 앞 300자만
 
     return {**state, "documents": docs}
 
@@ -292,7 +291,7 @@ def judge_documents(state: GraphState) -> GraphState:
     except:
         judgement = "not_resolved"
     
-    print(f"[Judge] 판단 결과: {judgement}")
+    print(f"[Judge] 판단 결과: {judgement}\n")
     return {**state, "judgement": judgement}
 
 
@@ -333,7 +332,7 @@ def rewrite_question(state: GraphState) -> GraphState:
 
 def generate_answer(state: GraphState) -> GraphState:
     """답변 생성 노드 - DB에서 가져온 URL을 자동으로 추가"""
-    print("🤖 [Node: Generate] 답변 생성 중...")
+    print("🤖 [Node: Generate] 답변 생성 중...\n")
     
     question = state["question"]
     docs = state["documents"]
@@ -391,7 +390,7 @@ def generate_answer(state: GraphState) -> GraphState:
         
         answer = answer + url_section
     
-    print("✅ 답변 생성 완료 (URL 자동 추가됨)")
+    print("✅ 답변 생성 완료\n")
     
     return {**state, "answer": answer}
 
@@ -408,7 +407,7 @@ def decide_to_rewrite(state: GraphState) -> Literal["rewrite", "generate"]:
         print("✍️ [Decision] → 질문 재작성")
         return "rewrite"
     else:
-        print("✍️ [Decision] → 답변 생성")
+        print("✍️ [Decision] → 답변 생성\n")
         return "generate"
 
 
@@ -458,8 +457,8 @@ def create_graph():
 
 def generate(question: str) -> str:
     """메인 함수: 질문을 받아 답변 생성"""
-    print("\n===== NEW QUERY (LangGraph) =====")
-    print(f"💁‍♂️ User Question: {question}")
+    print("\n===== NEW QUERY =====")
+    print(f"💁‍♂️ User Question: {question}\n")
     
     # 그래프 생성
     graph = create_graph()
@@ -479,7 +478,7 @@ def generate(question: str) -> str:
     config = {"configurable": {"thread_id": "1"}}
     final_state = graph.invoke(initial_state, config)
     
-    print("[Done] 응답 완료\n")
+    print("[Done] 응답 완료 ‼️\n")
     return final_state["answer"]
 
 
