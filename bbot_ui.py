@@ -1,7 +1,7 @@
 # Bebot UI
 import streamlit as st
 import json
-from bbot import create_db, generate, visualize_graph
+from bbot_web import create_db, generate, visualize_graph
 import os
 import psycopg2
 from dotenv import load_dotenv
