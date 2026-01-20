@@ -47,7 +47,8 @@ brew install pgvector
 ```
 
 
-## 🧠 LangGraph 기반 질의 처리 아키텍처
+### 🧠 LangGraph 기반 질의 처리 아키텍처
+---
 
 BeBot은 LangGraph를 사용하여 질문 처리 흐름을 **그래프 구조로 제어**합니다.  
 단순 RAG가 아닌, *답변 적합성 판단과 재검색 루프*를 포함합니다.
