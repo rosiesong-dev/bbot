@@ -55,42 +55,38 @@ conn = psycopg2.connect(
 
 
 # ==================== DB 관련 함수 ====================
-enc = tiktoken.get_encoding("cl100k_base")     # tokenizer
+enc = tiktoken.get_encoding("cl100k_base")
 
-def count_tokens(text: str) -> int:            # 토큰 수 세기
-    return len(enc.encode(text))               # 토큰 수 반환
+def count_tokens(text: str) -> int:
+    return len(enc.encode(text))
 
 def split_text_by_tokens(text: str, max_tokens: int = 4000):
-    words = text.split()                           
-    chunks = []                
-    chunk = []                            
-    tokens_so_far = 0                  
+    words = text.split()
+    chunks = []
+    chunk = []
+    tokens_so_far = 0
 
-    for word in words:                   
-        word_tokens = count_tokens(word + " ")     
-        if tokens_so_far + word_tokens > max_tokens:     
-            chunks.append(" ".join(chunk))        
-            chunk = []                                        
-            tokens_so_far = 0             
-        chunk.append(word)                         
-        tokens_so_far += word_tokens            
+    for word in words:
+        word_tokens = count_tokens(word + " ")
+        if tokens_so_far + word_tokens > max_tokens:
+            chunks.append(" ".join(chunk))
+            chunk = []
+            tokens_so_far = 0
+        chunk.append(word)
+        tokens_so_far += word_tokens
 
-    if chunk:                                     
-        chunks.append(" ".join(chunk))             
-    return chunks        
+    if chunk:
+        chunks.append(" ".join(chunk))
+    return chunks
 
 
 def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000):
     """extracted_texts 폴더 안 모든 텍스트 파일을 파싱하여 DB에 저장"""
-
-    # PostgreSQL 연결
     cur = conn.cursor()
     print("[DB] 연결 성공")
 
-    # pgvector 확장 
     cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
     
-    # 테이블 생성
     cur.execute("""
         CREATE TABLE IF NOT EXISTS crawled_data (  
             id SERIAL PRIMARY KEY,
@@ -109,11 +105,9 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
 
     for idx, fname in enumerate(files, start=1):
         try:
-            # 파일 내용 읽기
             with open(os.path.join(folder_path, fname), "r", encoding="utf-8") as f:
                 full_text = f.read()
 
-            # 파일 파싱
             lines = full_text.split('\n')
             
             title = ""
@@ -121,7 +115,6 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
             crawl_time = None
             content = ""
             
-            # 각 줄 파싱
             content_start_idx = 0
             for i, line in enumerate(lines):
                 if line.startswith("Title:"):
@@ -131,32 +124,24 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
                 elif line.startswith("Crawl Time:"):
                     crawl_time_str = line.replace("Crawl Time:", "").strip()
                     try:
-                        # ISO 8601 형식 파싱
                         crawl_time = datetime.fromisoformat(crawl_time_str.replace('+09:00', ''))
                     except:
                         crawl_time = datetime.now()
                 elif line.startswith("Content:"):
-                    # Content: 다음 줄부터가 실제 본문
                     content_start_idx = i + 1
                     break
             
-            # 본문 추출 (Content: 이후 모든 내용)
             if content_start_idx > 0:
                 content = '\n'.join(lines[content_start_idx:]).strip()
             else:
-                # Content: 태그가 없으면 전체를 본문으로
                 content = full_text
             
-            # title이 비어있으면 파일명 사용
             if not title:
                 title = fname.replace(".txt", "")
             
-            # 본문을 청크로 분할
             chunks = split_text_by_tokens(content, max_tokens=max_tokens)
 
-            # 각 청크를 DB에 삽입
             for chunk_idx, chunk in enumerate(chunks):
-                # 임베딩 생성
                 embedding_vector = embedding_model.embed_query(chunk)
 
                 cur.execute(
@@ -165,7 +150,6 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
                 )
                 inserted_count += 1
 
-            # 진행 상황 출력 (더 상세하게)
             if idx % 10 == 0:
                 print(f"[DB] {idx}개 파일 처리 완료")
                 print(f"   최근 파일: {title[:50]}...")
@@ -177,10 +161,8 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
             failed_files.append(fname)
             conn.rollback()
 
-    # 변경사항 커밋
     conn.commit()
 
-    # 최종 통계 출력
     cur.execute("SELECT COUNT(*) FROM crawled_data;")
     total_count = cur.fetchone()[0]
     print(f"\n[DB] ===== 최종 통계 =====")
@@ -190,10 +172,70 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
     if failed_files:
         print("[DB] 실패한 파일 일부:", failed_files[:20])
 
-    # 연결 종료
     cur.close()
     print("[DB] 데이터 삽입 완료\n")
 
+
+# ==================== 영상 검색 함수 ====================
+def retrieve_video_segments(question: str, top_k: int = 3):
+    """영상 세그먼트 벡터 검색"""
+    print(f"\n🎬 [Video] 영상 검색 중: {question}")
+
+    q_emb = embedding_model.embed_query(question)
+    print("🧠 질문 임베딩 생성 완료")
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # video_segments 테이블이 있는지 확인
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_name = 'video_segments'
+                );
+            """)
+            
+            if not cur.fetchone()[0]:
+                print("⚠️ video_segments 테이블이 없습니다.")
+                return []
+            
+            cur.execute("""
+                SELECT
+                    video_id,
+                    title,
+                    start_time,
+                    end_time,
+                    url,
+                    content
+                FROM video_segments
+                ORDER BY content_embedding <#> %s::vector
+                LIMIT %s
+            """, (q_emb, top_k))
+
+            rows = cur.fetchall()
+
+    print(f"📄 영상 검색 결과 수: {len(rows)}")
+
+    results = []
+    for r in rows:
+        video_id, title, start, end, url, content = r
+        snippet = content[:300].replace("\n", " ")
+
+        print(f"""
+   - 🎬 {title}
+     ⏱ {int(start)}s ~ {int(end)}s
+     {snippet}...
+        """)
+
+        results.append({
+            "video_id": video_id,
+            "title": title,
+            "start": start,
+            "end": end,
+            "url": url,
+            "content": content
+        })
+
+    return results
 
 
 # ==================== State 정의 ====================
@@ -204,7 +246,6 @@ class GraphState(TypedDict):
     documents: List[dict]
     judgement: str
     iteration: int
-
 
 
 # ==================== LangGraph 노드 함수들 ====================
@@ -352,7 +393,7 @@ def create_graph():
         decide_to_rewrite,
         {
             "rewrite": "rewrite",
-            "end": END  # ✅ 검색만 하고 종료
+            "end": END
         }
     )
     
@@ -368,8 +409,8 @@ def detect_language(text: str):
 
 
 # ==================== 통합 답변 생성 ====================
-def generate(question: str) -> str:
-    """웹 + 책 통합 검색 후 답변 생성"""
+def generate(question: str) -> tuple[str, dict]:
+    """웹 + 책 + 영상 통합 검색 후 답변 생성 (출처 정보 반환)"""
     print("\n" + "="*60)
     print("===== 통합 검색 시작 =====")
     print("="*60)
@@ -394,19 +435,31 @@ def generate(question: str) -> str:
     # 2. 책 DB 검색
     book_docs = retrieve_pages(question, top_k=3)
     
-    # 3. 문서 없으면 종료
-    if not web_docs and not book_docs:
-        return "📘 관련 정보를 찾을 수 없습니다."
+    # 3. 영상 DB 검색
+    video_docs = retrieve_video_segments(question, top_k=3)
     
-    # 4. 언어 감지
+    # 4. 문서 없으면 종료
+    if not web_docs and not book_docs and not video_docs:
+        return "📘 관련 정보를 찾을 수 없습니다.", {}
+    
+    # 5. 언어 감지
     lang = detect_language(question)
     lang_instruction = "한국어로 답변하세요." if lang == "ko" else "Answer in English."
     
-    # 5. 컨텍스트 구성
+    # 6. 컨텍스트 구성
     context_parts = []
     
-    if web_docs:
+    if video_docs:
         context_parts.append("=" * 50)
+        context_parts.append("🎬 영상 자료")
+        context_parts.append("=" * 50)
+        for i, doc in enumerate(video_docs, 1):
+            context_parts.append(f"\n[영상 {i}] {doc['title']}")
+            context_parts.append(f"시간: {int(doc['start'])}초 ~ {int(doc['end'])}초")
+            context_parts.append(f"내용: {doc['content'][:800]}")
+    
+    if web_docs:
+        context_parts.append("\n" + "=" * 50)
         context_parts.append("📰 웹사이트 자료")
         context_parts.append("=" * 50)
         for i, doc in enumerate(web_docs, 1):
@@ -424,12 +477,12 @@ def generate(question: str) -> str:
     
     context = "\n".join(context_parts)
     
-    # 6. 답변 생성
+    # 7. 답변 생성
     system_prompt = f"""
     당신은 기독교적 세계관과 창조과학에 기반한 전문가입니다.
 
     규칙:
-    - 반드시 제공된 자료[웹 자료, 책 자료]만 모두 활용
+    - 반드시 제공된 자료[영상 자료, 웹 자료, 책 자료]만 모두 활용
     - 🌍 과학적 관점 / 📜 성경적 관점으로 구분
     - 명확하고 이해하기 쉽게 작성
 
@@ -456,39 +509,20 @@ def generate(question: str) -> str:
     
     answer = res.choices[0].message.content
     
-    # 7. 출처 추가
-    sources = []
-    
-    if web_docs:
-        web_urls = list(set([d["url"] for d in web_docs if d.get("url")]))
-        if web_urls:
-            sources.append("**🌐 웹 자료:**")
-            for url in web_urls:
-                sources.append(f"• {url}")
-    
-    if book_docs:
-        book_names = list(set([d['book'] for d in book_docs]))
-        if len(book_names) == 1:
-            book_name = book_names[0]
-            pages = ", ".join(str(d['page']) for d in book_docs)
-            sources.append(f"\n**📖 책 자료:**")
-            sources.append(f"• {book_name} - 페이지 {pages}")
-        else:
-            sources.append(f"\n**📖 책 자료:**")
-            for doc in book_docs:
-                sources.append(f"• {doc['book']} - 페이지 {doc['page']}")
-    
-    if sources:
-        answer += "\n\n---\n" + "\n".join(sources)
+    # 8. 출처 정보 구성
+    sources_info = {
+        "video_docs": video_docs,
+        "web_docs": web_docs,
+        "book_docs": book_docs
+    }
     
     print("✅ 통합 답변 완료!\n")
     print("="*60 + "\n")
-    return answer
-
+    return answer, sources_info
 
 
 # ==================== 테스트 ====================
 if __name__ == "__main__":
     test_question = "창조과학이 뭔가요?"
-    answer = generate(test_question)
+    answer, sources = generate(test_question)
     print(f"\n최종 답변:\n{answer}")
