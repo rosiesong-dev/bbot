@@ -1,4 +1,4 @@
-# Bebot UI
+# bbot_ui.py
 import streamlit as st
 import json
 from bbot_web import create_db, generate
@@ -226,6 +226,31 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         
+        # 영상 출처가 있으면 답변 후 표시
+        if msg["role"] == "assistant" and "video_source" in msg and msg["video_source"]:
+            video_info = msg["video_source"]
+            st.markdown("---")
+            st.markdown(f"### 🎬 참고 영상")
+            
+            # YouTube 영상 임베드
+            if "youtu.be" in video_info['url'] or "youtube.com" in video_info['url']:
+                # URL에서 비디오 ID 추출
+                if "youtu.be" in video_info['url']:
+                    video_id = video_info['url'].split('youtu.be/')[-1].split('?')[0]
+                else:
+                    video_id = video_info['url'].split('v=')[-1].split('&')[0]
+                
+                # 시작 시간 파라미터 추가
+                start_time = int(video_info['start'])
+                embed_url = f"https://www.youtube.com/embed/{video_id}?start={start_time}"
+                
+                st.markdown(f"**{video_info['title']}**")
+                st.markdown(f'<iframe width="100%" height="400" src="{embed_url}" frameborder="0" allowfullscreen></iframe>', 
+                           unsafe_allow_html=True)
+            else:
+                st.markdown(f"**{video_info['title']}**")
+                st.markdown(f"[영상 보기]({video_info['url']}) (시작: {int(video_info['start'])}초)")
+        
         # 워크플로우 정보가 있으면 표시
         if "workflow" in msg and st.session_state.show_workflow:
             with st.expander("🔍 처리 과정 보기"):
@@ -258,12 +283,12 @@ if prompt := st.chat_input("Curious about creation science ✨"):
         # 응답 생성
         with st.spinner("Searching..."):
             try:
-                response = generate(prompt)
+                response, sources_info = generate(prompt)
                 
                 # 워크플로우 단계 기록
                 workflow_steps = [
                     "질문 라우팅 완료",
-                    "벡터 검색 수행",
+                    "벡터 검색 수행 (웹 + 책 + 영상)",
                     "문서 적합성 판단",
                     "답변 생성 완료"
                 ]
@@ -278,16 +303,80 @@ if prompt := st.chat_input("Curious about creation science ✨"):
                 # 응답 출력
                 st.markdown(response)
                 
+                # 영상 출처가 있으면 답변 후 표시
+                video_source = None
+                if sources_info.get("video_docs"):
+                    top_video = sources_info["video_docs"][0]
+                    video_source = {
+                        "title": top_video["title"],
+                        "url": top_video["url"],
+                        "start": top_video["start"]
+                    }
+                    
+                    st.markdown("---")
+                    st.markdown(f"### 🎬 참고 영상")
+                    
+                    # YouTube 영상 임베드
+                    if "youtu.be" in top_video['url'] or "youtube.com" in top_video['url']:
+                        # URL에서 비디오 ID 추출
+                        if "youtu.be" in top_video['url']:
+                            video_id = top_video['url'].split('youtu.be/')[-1].split('?')[0]
+                        else:
+                            video_id = top_video['url'].split('v=')[-1].split('&')[0]
+                        
+                        # 시작 시간 파라미터 추가
+                        start_time = int(top_video['start'])
+                        embed_url = f"https://www.youtube.com/embed/{video_id}?start={start_time}"
+                        
+                        st.markdown(f"**{top_video['title']}**")
+                        st.markdown(f'<iframe width="100%" height="400" src="{embed_url}" frameborder="0" allowfullscreen></iframe>', 
+                                   unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"**{top_video['title']}**")
+                        st.markdown(f"[영상 보기]({top_video['url']}) (시작: {int(top_video['start'])}초)")
+                
+                # 출처 추가
+                sources = []
+                
+                if sources_info.get("web_docs"):
+                    web_urls = list(set([d["url"] for d in sources_info["web_docs"] if d.get("url")]))
+                    if web_urls:
+                        sources.append("\n**🌐 웹 자료:**")
+                        for url in web_urls:
+                            sources.append(f"• {url}")
+                
+                if sources_info.get("book_docs"):
+                    book_names = list(set([d['book'] for d in sources_info["book_docs"]]))
+                    if len(book_names) == 1:
+                        book_name = book_names[0]
+                        pages = ", ".join(str(d['page']) for d in sources_info["book_docs"])
+                        sources.append(f"\n**📖 책 자료:**")
+                        sources.append(f"• {book_name} - 페이지 {pages}")
+                    else:
+                        sources.append(f"\n**📖 책 자료:**")
+                        for doc in sources_info["book_docs"]:
+                            sources.append(f"• {doc['book']} - 페이지 {doc['page']}")
+                
+                if sources_info.get("video_docs"):
+                    sources.append("\n**🎬 영상 자료:**")
+                    for doc in sources_info["video_docs"]:
+                        sources.append(f"• [{doc['title']}]({doc['url']}) - {int(doc['start'])}초~{int(doc['end'])}초")
+                
+                if sources:
+                    st.markdown("\n---\n" + "\n".join(sources))
+                
             except Exception as e:
                 st.error(f"❌ 오류 발생: {str(e)}")
                 response = "죄송합니다. 답변 생성 중 오류가 발생했습니다."
                 workflow_steps = []
+                video_source = None
     
     # 메시지 저장 (워크플로우 정보 포함)
     st.session_state.messages.append({
         "role": "assistant",
         "content": response,
-        "workflow": workflow_steps
+        "workflow": workflow_steps,
+        "video_source": video_source
     })
 
 
