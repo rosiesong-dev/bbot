@@ -206,7 +206,7 @@ class SrtProcessor:
 
 # ==================== DB Repository ====================
 class VideoRepository:
-    def init_db(self):
+    def create_video_db(self):
         """테이블 생성"""
         with get_conn() as conn:
             with conn.cursor() as cur:
@@ -257,7 +257,7 @@ async def main_pipeline(srt_path: str, video_meta: dict):
     repo = VideoRepository()
     processor = SrtProcessor(embedding_model, model)
 
-    repo.init_db()
+    repo.create_video_db()
 
     if not os.path.exists(srt_path):
         print(f"File not found: {srt_path}")
