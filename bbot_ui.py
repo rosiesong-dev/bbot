@@ -1,7 +1,8 @@
 # Bebot UI
 import streamlit as st
 import json
-from bbot_web import create_db, generate, visualize_graph
+from bbot_web import create_db, generate
+from bbot_book import create_book_db
 import os
 import psycopg2
 from dotenv import load_dotenv
@@ -88,6 +89,9 @@ if "db_ready" not in st.session_state:
     if not table_exists("crawled_data"):
         with st.spinner("DB 생성 중…"):
             create_db("./extracted_texts")
+    if not table_exists("book_eng"):
+        with st.spinner("DB 생성 중…"):
+            create_book_db()
     st.session_state.db_ready = True
     print("✅ DB 준비 완료")
 
@@ -111,7 +115,7 @@ with st.sidebar:
         st.info("🔍 DB 상태 확인 중...")
         if not table_exists("crawled_data"):
             st.warning("⚠️ DB가 생성되지 않았습니다.")
-            if st.button("🔨 DB 생성하기", type="primary"):
+            if st.button("🔨 DB 생성하기", type="primary", ):
                 with st.spinner("DB 생성 중... (수 분 소요)"):
                     create_db("./extracted_texts")
                     st.session_state.db_ready = True
@@ -157,7 +161,7 @@ with st.sidebar:
     # 대화 관리
     st.markdown("### 💬 대화 관리")
     
-    if st.button("🗑️ 대화 초기화", type="secondary"):
+    if st.button("🗑️ 대화 초기화", type="secondary", key="clear_chat"):
         st.session_state.messages = []
         st.rerun()
     
