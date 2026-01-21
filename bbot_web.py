@@ -1,9 +1,9 @@
+# bbot_web.py
 import os
 import json
 from datetime import datetime
 from typing import List, Literal
 from typing_extensions import TypedDict
-from pydantic import BaseModel
 from dotenv import load_dotenv
 
 import psycopg2
@@ -16,6 +16,8 @@ import tiktoken
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
+
+from bbot_book import retrieve_pages
 
 
 # ==================== 환경 변수 로드 ====================
@@ -30,6 +32,18 @@ embedding_model = UpstageEmbeddings(
     upstage_api_key=api_key,
     model="embedding-query"
 )
+
+
+# ==================== DB 연결 ====================
+def get_conn():
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=os.getenv("DB_PORT")
+    )
+
 
 conn = psycopg2.connect(
     host=os.getenv("DB_HOST"),
@@ -63,7 +77,7 @@ def split_text_by_tokens(text: str, max_tokens: int = 4000):
 
     if chunk:                                     
         chunks.append(" ".join(chunk))             
-    return chunks                             
+    return chunks        
 
 
 def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000):
@@ -181,24 +195,21 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
     print("[DB] 데이터 삽입 완료\n")
 
 
+
 # ==================== State 정의 ====================
 class GraphState(TypedDict):
-    """LangGraph의 상태를 정의하는 클래스"""
-    question: str                    # 원본 질문
-    rewritten_question: str          # 재작성된 질문
-    route: str                       # 라우팅 결과
-    documents: List[dict]            # 검색된 문서들
-    judgement: str                   # 검색 결과 판단
-    answer: str                      # 최종 답변
-    iteration: int                   # 재시도 횟수
+    question: str
+    rewritten_question: str
+    route: str
+    documents: List[dict]
+    judgement: str
+    iteration: int
 
 
 
 # ==================== LangGraph 노드 함수들 ====================
-
 def route_question(state: GraphState) -> GraphState:
-    """라우팅 노드: 질문이 창조과학/성경 관련인지 판단"""
-    print("🤖 [Node: Router] 질문 의도 분석 중...")
+    print("🤖 [Router] 질문 분석...\n")
     
     question = state["question"]
     keywords = [
@@ -210,49 +221,36 @@ def route_question(state: GraphState) -> GraphState:
     ]
     
     route = "internal" if any(k in question for k in keywords) else "internal"
-    print(f"[Router] 선택된 경로: {route}\n")
-    
     return {**state, "route": route, "iteration": 0}
 
-
 def retrieve_documents(state: GraphState) -> GraphState:
-    """문서 검색 노드"""
-    print("🤖 [Node: Retrieve] 벡터 검색 시작 \n\n")
+    print("🌐 [Web DB] 벡터 검색 시작...\n")
     
-    # 재작성된 질문이 있으면 사용, 없으면 원본 사용
     query = state.get("rewritten_question") or state["question"]
-    
     q_embedding = embedding_model.embed_query(query)
     
-    # PostgreSQL에서 벡터 유사도 검색
-    cur = conn.cursor()
-    
-    cur.execute("""
-        SELECT title, url, content
-        FROM crawled_data
-        ORDER BY content_embedding <#> %s::vector
-        LIMIT 5
-    """, (q_embedding,))
-    
-    rows = cur.fetchall()
-    cur.close()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT title, url, content
+                FROM crawled_data
+                ORDER BY content_embedding <#> %s::vector
+                LIMIT 5
+            """, (q_embedding,))
+            
+            rows = cur.fetchall()
     
     docs = [{"title": r[0], "url": r[1], "content": r[2]} for r in rows]
-    print(f"[Retrieve] 검색 문서 수: {len(docs)}")
-    
+    print(f"[Web DB] 검색 결과: {len(docs)}개\n")
     
     for i, d in enumerate(docs, start=1):
-        print(f"\n[Doc {i}]")
-        print(f"Title: {d['title']}")
-        print(f"URL: {d['url']}")
-        print(f"Content (preview): {d['content'][:300]}\n")  # 앞 300자만
-
+        print(f"[Web Doc {i}] {d['title'][:50]}...")
+    
+    print()
     return {**state, "documents": docs}
 
-
 def judge_documents(state: GraphState) -> GraphState:
-    """문서 판단 노드"""
-    print("🤖 [Node: Judge] 검색 결과 평가 중...")
+    print("🤖 [Judge] 문서 평가 중...\n")
     
     question = state["question"]
     docs = state["documents"]
@@ -266,14 +264,10 @@ def judge_documents(state: GraphState) -> GraphState:
     사용자 질문에 대해 아래 문서들이 충분한 정보를 제공하는지 판단하세요.
 
     Question: {question}
-
     Documents: {joined_docs}
 
     JSON 형식으로만 응답:
-    {{
-        "judgement": "resolved" or "not_resolved",
-        "binary_score": "yes" or "no"
-    }}
+    {{"judgement": "resolved" or "not_resolved", "binary_score": "yes" or "no"}}
     """
     
     res = model.chat.completions.create(
@@ -291,20 +285,16 @@ def judge_documents(state: GraphState) -> GraphState:
     except:
         judgement = "not_resolved"
     
-    print(f"[Judge] 판단 결과: {judgement}\n")
+    print(f"[Judge] 결과: {judgement}\n")
     return {**state, "judgement": judgement}
 
-
 def rewrite_question(state: GraphState) -> GraphState:
-    """질문 재작성 노드"""
-    print("🤖 [Node: Rewrite] 질문 재작성 중...")
+    print("✍️ [Rewrite] 질문 재작성...\n")
     
     question = state["question"]
     iteration = state.get("iteration", 0)
     
-    system_rewriter = """
-    당신은 RAG 검색 성능을 높이기 위해 질문을 더 명확하고 구체적으로 재작성하는 전문가입니다.
-    """
+    system_rewriter = "당신은 RAG 검색 성능을 높이기 위해 질문을 더 명확하고 구체적으로 재작성하는 전문가입니다."
     
     prompt_rewriter = ChatPromptTemplate.from_messages([
         ("system", system_rewriter),
@@ -324,174 +314,177 @@ def rewrite_question(state: GraphState) -> GraphState:
     )
     
     rewritten = chain.invoke({"question": question})
-    print(f"[Rewrite] 재작성된 질문: {rewritten}")
+    print(f"[Rewrite] 재작성: {rewritten}\n")
     
     return {**state, "rewritten_question": rewritten, "iteration": iteration + 1}
 
 
-
-def generate_answer(state: GraphState) -> GraphState:
-    """답변 생성 노드 - DB에서 가져온 URL을 자동으로 추가"""
-    print("🤖 [Node: Generate] 답변 생성 중...\n")
-    
-    question = state["question"]
-    docs = state["documents"]
-    
-    if not docs:
-        return {**state, "answer": "제공된 문서에는 해당 정보가 없습니다."}
-    
-    # 언어 감지
-    lang = "ko" if any('\uac00' <= ch <= '\ud7a3' for ch in question) else "en"
-    lang_instruction = "한국어로 답변하세요." if lang == "ko" else "Answer in English."
-    
-    # 컨텍스트 구성 (URL은 LLM에게 보내지 않음)
-    context = "\n\n".join(
-        f"[문서 {i+1}]\n제목: {d['title']}\n내용: {d['content']}"
-        for i, d in enumerate(docs)
-    )
-    
-    system_prompt = f"""
-    당신은 기독교적 세계관과 창조론에 기반해 답변하는 전문가입니다.
-
-    규칙:
-    - 반드시 제공된 [문서] 내용만 사용하세요.
-    - 🌍 과학적 관점과 📜 성경적 관점으로 구분하여 설명하세요.
-
-
-    {lang_instruction}
-    """
-    
-    user_prompt = f"""
-    [문서]
-    {context}
-
-    [질문]
-    {question}
-    """
-    
-    res = model.chat.completions.create(
-        model="solar-pro2",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0
-    )
-    
-    answer = res.choices[0].message.content
-    
-    # DB에서 가져온 실제 URL 자동 추가
-    unique_urls = list(set([d["url"] for d in docs if d["url"]]))  # 중복 제거
-    
-    if unique_urls:
-        url_section = "\n\n---\n**📚 참고 웹사이트 링크:**\n"
-        for i, url in enumerate(unique_urls, 1):
-            url_section += f"{i}. {url}\n"
-        
-        answer = answer + url_section
-    
-    print("✅ 답변 생성 완료\n")
-    
-    return {**state, "answer": answer}
-
-
-
 # ==================== 조건부 엣지 ====================
-def decide_to_rewrite(state: GraphState) -> Literal["rewrite", "generate"]:
-    """재작성 여부 결정"""
+def decide_to_rewrite(state: GraphState) -> Literal["rewrite", "end"]:
     judgement = state.get("judgement", "resolved")
     iteration = state.get("iteration", 0)
     
-    # 최대 2번까지만 재시도
     if judgement == "not_resolved" and iteration < 2:
-        print("✍️ [Decision] → 질문 재작성")
+        print("✍️ [Decision] → 재작성\n")
         return "rewrite"
     else:
-        print("✍️ [Decision] → 답변 생성\n")
-        return "generate"
-
-
+        print("✅ [Decision] → 검색 완료\n")
+        return "end"
 
 
 # ==================== LangGraph 그래프 구성 ====================
 def create_graph():
-    """LangGraph 그래프 생성"""
+    """LangGraph 그래프 생성 - 검색까지만"""
     
     workflow = StateGraph(GraphState)
     
-    # 노드 추가
     workflow.add_node("route", route_question)
     workflow.add_node("retrieve", retrieve_documents)
     workflow.add_node("judge", judge_documents)
     workflow.add_node("rewrite", rewrite_question)
-    workflow.add_node("generate", generate_answer)
     
-    # 엣지 연결
     workflow.set_entry_point("route")
     workflow.add_edge("route", "retrieve")
     workflow.add_edge("retrieve", "judge")
     
-    # 조건부 엣지
     workflow.add_conditional_edges(
         "judge",
         decide_to_rewrite,
         {
             "rewrite": "rewrite",
-            "generate": "generate"
+            "end": END  # ✅ 검색만 하고 종료
         }
     )
     
-    # 재작성 후 다시 검색
     workflow.add_edge("rewrite", "retrieve")
     
-    # 생성 후 종료
-    workflow.add_edge("generate", END)
-    
-    # 메모리 추가 (선택사항)
     memory = MemorySaver()
-    
     return workflow.compile(checkpointer=memory)
 
 
-# ==================== Main 함수 ====================
+# ============================= 언어 감지 =============================
+def detect_language(text: str):
+    return "ko" if any("\uac00" <= c <= "\ud7a3" for c in text) else "en"
 
+
+# ==================== 통합 답변 생성 ====================
 def generate(question: str) -> str:
-    """메인 함수: 질문을 받아 답변 생성"""
-    print("\n===== NEW QUERY =====")
-    print(f"💁‍♂️ User Question: {question}\n")
+    """웹 + 책 통합 검색 후 답변 생성"""
+    print("\n" + "="*60)
+    print("===== 통합 검색 시작 =====")
+    print("="*60)
+    print(f"💁‍♂️ 질문: {question}\n")
     
-    # 그래프 생성
+    # 1. 웹 DB 검색 (LangGraph)
     graph = create_graph()
     
-    # 초기 상태
     initial_state = {
         "question": question,
         "rewritten_question": "",
         "route": "",
         "documents": [],
         "judgement": "",
-        "answer": "",
         "iteration": 0
     }
     
-    # 그래프 실행
     config = {"configurable": {"thread_id": "1"}}
-    final_state = graph.invoke(initial_state, config)
+    web_result = graph.invoke(initial_state, config)
+    web_docs = web_result["documents"]
     
-    print("[Done] 응답 완료 ‼️\n")
-    return final_state["answer"]
+    # 2. 책 DB 검색
+    book_docs = retrieve_pages(question, top_k=3)
+    
+    # 3. 문서 없으면 종료
+    if not web_docs and not book_docs:
+        return "📘 관련 정보를 찾을 수 없습니다."
+    
+    # 4. 언어 감지
+    lang = detect_language(question)
+    lang_instruction = "한국어로 답변하세요." if lang == "ko" else "Answer in English."
+    
+    # 5. 컨텍스트 구성
+    context_parts = []
+    
+    if web_docs:
+        context_parts.append("=" * 50)
+        context_parts.append("📰 웹사이트 자료")
+        context_parts.append("=" * 50)
+        for i, doc in enumerate(web_docs, 1):
+            context_parts.append(f"\n[웹 문서 {i}]")
+            context_parts.append(f"제목: {doc['title']}")
+            context_parts.append(f"내용: {doc['content'][:800]}")
+    
+    if book_docs:
+        context_parts.append("\n" + "=" * 50)
+        context_parts.append("📖 책 자료")
+        context_parts.append("=" * 50)
+        for i, doc in enumerate(book_docs, 1):
+            context_parts.append(f"\n[{doc['book']} - 페이지 {doc['page']}]")
+            context_parts.append(f"내용: {doc['content'][:800]}")
+    
+    context = "\n".join(context_parts)
+    
+    # 6. 답변 생성
+    system_prompt = f"""
+    당신은 기독교적 세계관과 창조과학에 기반한 전문가입니다.
 
+    규칙:
+    - 반드시 제공된 자료[웹 자료, 책 자료]만 모두 활용
+    - 🌍 과학적 관점 / 📜 성경적 관점으로 구분
+    - 명확하고 이해하기 쉽게 작성
 
-# ==================== 그래프 시각화 ====================
+    {lang_instruction}
+    """
 
-def visualize_graph():
-    """그래프 구조를 Mermaid 다이어그램으로 출력"""
-    graph = create_graph()
-    try:
-        print(graph.get_graph().draw_mermaid())
-    except Exception as e:
-        print(f"시각화 실패: {e}")
-        print("graphviz 또는 mermaid 라이브러리가 필요합니다.")
+    user_prompt = f"""
+    [자료]
+    {context}
+
+    [질문]
+    {question}
+    """
+
+    print("🤖 [Generate] 통합 답변 생성 중...\n")
+    res = model.chat.completions.create(
+        model="solar-pro2",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0
+    )
+    
+    answer = res.choices[0].message.content
+    
+    # 7. 출처 추가
+    sources = []
+    
+    if web_docs:
+        web_urls = list(set([d["url"] for d in web_docs if d.get("url")]))
+        if web_urls:
+            sources.append("**🌐 웹 자료:**")
+            for url in web_urls:
+                sources.append(f"• {url}")
+    
+    if book_docs:
+        book_names = list(set([d['book'] for d in book_docs]))
+        if len(book_names) == 1:
+            book_name = book_names[0]
+            pages = ", ".join(str(d['page']) for d in book_docs)
+            sources.append(f"\n**📖 책 자료:**")
+            sources.append(f"• {book_name} - 페이지 {pages}")
+        else:
+            sources.append(f"\n**📖 책 자료:**")
+            for doc in book_docs:
+                sources.append(f"• {doc['book']} - 페이지 {doc['page']}")
+    
+    if sources:
+        answer += "\n\n---\n" + "\n".join(sources)
+    
+    print("✅ 통합 답변 완료!\n")
+    print("="*60 + "\n")
+    return answer
+
 
 
 # ==================== 테스트 ====================
