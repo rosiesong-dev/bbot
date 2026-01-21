@@ -1,14 +1,12 @@
-# bbot_ui.py
 import streamlit as st
 import json
 from bbot_web import create_db, generate
 from bbot_book import create_book_db
-from bbot_video import VideoRepository
+from bbot_video import create_video_db_from_folder
 import os
 import psycopg2
 from dotenv import load_dotenv
 from datetime import datetime
-
 
 from bbotCss import CSS
 st.markdown(CSS, unsafe_allow_html=True)
@@ -41,20 +39,24 @@ def get_conn():
 
 # ==================== DB 체크 함수 ====================
 def table_exists(table_name: str) -> bool:
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                      AND table_name = %s
-                );
-            """, (table_name,))
-            return cur.fetchone()[0]
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                          AND table_name = %s
+                    );
+                """, (table_name,))
+                return cur.fetchone()[0]
+    except Exception as e:
+        print(f"❌ 테이블 존재 확인 에러 ({table_name}): {e}")
+        return False
 
 
-def get_db():
+def get_db_stats():
     """DB 통계 가져오기"""
     try:
         with get_conn() as conn:
@@ -69,7 +71,7 @@ def get_db():
                 
                 return total_docs, unique_titles
     except Exception as e:
-        print(f"DB 통계 조회 에러: {e}")
+        print(f"❌ DB 통계 조회 에러: {e}")
         return 0, 0
 
 
@@ -84,20 +86,54 @@ if "show_workflow" not in st.session_state:
     st.session_state.show_workflow = False
 
 
-# DB 초기 체크
-if "db_ready" not in st.session_state:
-    print("✅ DB 체크 중")
-    if not table_exists("crawled_data"):
-        with st.spinner("DB 생성 중…"):
-            create_db("./extracted_texts")
-    if not table_exists("book_eng"):
-        with st.spinner("DB 생성 중…"):
+# ==================== 전체 DB 준비 ====================
+def prepare_all_databases():
+    """모든 DB 테이블 생성"""
+    print("\n" + "="*60)
+    print("===== DB 초기화 시작 =====")
+    print("="*60)
+    
+    try:
+        # 1. 웹 DB 생성
+        if not table_exists("crawled_data"):
+            print("\n🌐 [1/3] 웹 DB 생성 중...")
+            if os.path.exists("./extracted_texts"):
+                create_db("./extracted_texts")
+                print("✅ 웹 DB 생성 완료")
+            else:
+                print("⚠️ ./extracted_texts 폴더가 없습니다. 웹 DB 건너뛰기")
+        else:
+            print("✅ [1/3] 웹 DB 이미 존재")
+        
+        # 2. 책 DB 생성
+        if not table_exists("book_eng"):
+            print("\n📚 [2/3] 책 DB 생성 중...")
             create_book_db()
-    if not table_exists("video_segments"):
-        with st.spinner("DB 생성 중…"):
-            VideoRepository.create_video_db()
-    st.session_state.db_ready = True
-    print("✅ DB 준비 완료")
+            print("✅ 책 DB 생성 완료")
+        else:
+            print("✅ [2/3] 책 DB 이미 존재")
+        
+        # 3. 영상 DB 생성
+        if not table_exists("video_segments"):
+            print("\n🎬 [3/3] 영상 DB 생성 중...")
+            if os.path.exists("./srt_data"):
+                create_video_db_from_folder("./srt_data")
+                print("✅ 영상 DB 생성 완료")
+            else:
+                print("⚠️ ./srt_data 폴더가 없습니다. 영상 DB 건너뛰기")
+        else:
+            print("✅ [3/3] 영상 DB 이미 존재")
+        
+        print("\n" + "="*60)
+        print("===== DB 초기화 완료 =====")
+        print("="*60 + "\n")
+        return True
+        
+    except Exception as e:
+        print(f"\n❌ DB 생성 중 오류 발생: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 # ==================== 사이드바 ====================
@@ -114,33 +150,62 @@ with st.sidebar:
     )
     st.markdown("---")
     
-    # DB 상태 확인
+    # ==================== DB 자동 초기화 ====================
     if not st.session_state.db_ready:
-        st.info("🔍 DB 상태 확인 중...")
-        if not table_exists("crawled_data"):
-            st.warning("⚠️ DB가 생성되지 않았습니다.")
-            if st.button("🔨 DB 생성하기", type="primary", ):
-                with st.spinner("DB 생성 중... (수 분 소요)"):
-                    create_db("./extracted_texts")
+        # 자동으로 DB 확인 및 생성
+        with st.spinner("🔍 DB 확인 중..."):
+            web_exists = table_exists("crawled_data")
+            if(web_exists): print("✅ [1/3] 웹 DB 존재 확인 완료")
+            book_exists = table_exists("book_eng")
+            if(book_exists): print("✅ [2/3] 책 DB 존재 확인 완료")
+            video_exists = table_exists("video_segments")
+            if(video_exists): print("✅ [3/3] 영상 DB 존재 확인 완료")
+            
+            # 하나라도 없으면 자동 생성
+            if not (web_exists and book_exists and video_exists):
+                st.info("⚙️ DB 초기화 중... (최초 1회, 수 분 소요)")
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                status_text.text("DB 생성 중...")
+                progress_bar.progress(50)
+                
+                success = prepare_all_databases()
+                
+                progress_bar.progress(100)
+                status_text.empty()
+                progress_bar.empty()
+                
+                if success:
                     st.session_state.db_ready = True
+                    st.success("✅ DB 준비 완료!")
                     st.rerun()
-        else:
-            st.session_state.db_ready = True
-            st.success("✅ DB 준비 완료!")
+                else:
+                    st.error("❌ DB 생성 실패. 로그를 확인하세요.")
+                    st.stop()
+            else:
+                # 모든 테이블이 이미 존재
+                st.session_state.db_ready = True
+                st.rerun()
+
     else:
-        st.success("✅ DB 준비 완료!")
-        
+        st.success("✅ DB 사용 가능")
+
         # DB 통계
-        total_docs, unique_titles = get_db()
+        try:
+            total_docs, unique_titles = get_db_stats()
+
+            st.markdown("### 📊 DB 통계")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("총 문서", f"{total_docs:,}")
+            with col2:
+                st.metric("고유 자료", f"{unique_titles:,}")
+        except Exception as e:
+            st.warning(f"통계 로드 실패: {e}")
         
-        st.markdown("### 📊 DB 통계")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("총 문서", f"{total_docs:,}")
-        with col2:
-            st.metric("고유 자료", f"{unique_titles:,}")
-    
-    st.markdown("---")
+        st.markdown("---")
     
     # 설정 옵션
     st.markdown("### ⚙️ 설정")
@@ -210,17 +275,21 @@ if not st.session_state.messages:
     
     col1, col2, col3 = st.columns(3)
     
+    example_prompt = None
+    
     with col1:
         if st.button("🌍 창조과학이란?", use_container_width=True):
-            prompt = "창조과학이 무엇인가요?"
+            example_prompt = "창조과학이 무엇인가요?"
     with col2:
         if st.button("🦴 화석은 어떻게?", use_container_width=True):
-            prompt = "화석은 진화론을 지지하나요?"
+            example_prompt = "화석은 진화론을 지지하나요?"
     with col3:
         if st.button("📖 창세기 해석", use_container_width=True):
-            prompt = "창세기 1장을 어떻게 이해해야 하나요?"
+            example_prompt = "창세기 1장을 어떻게 이해해야 하나요?"
     
     st.markdown("---")
+else:
+    example_prompt = None
 
 
 # ==================== 채팅 인터페이스 ====================
@@ -263,11 +332,13 @@ for msg in st.session_state.messages:
 
 
 # 사용자 입력 처리
-if prompt := st.chat_input("Curious about creation science ✨"):
+prompt = st.chat_input("Curious about creation science ✨") or example_prompt
+
+if prompt:
     
     # DB 준비 확인
     if not st.session_state.db_ready:
-        st.error("⚠️ DB가 준비되지 않았습니다. 사이드바에서 DB를 생성해주세요.")
+        st.error("⚠️ DB가 준비되지 않았습니다. 사이드바에서 'DB 생성하기' 버튼을 눌러주세요.")
         st.stop()
     
     # 사용자 메시지 출력
