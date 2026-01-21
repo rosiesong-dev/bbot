@@ -3,6 +3,7 @@ import streamlit as st
 import json
 from bbot_web import create_db, generate
 from bbot_book import create_book_db
+from bbot_video import VideoRepository
 import os
 import psycopg2
 from dotenv import load_dotenv
@@ -92,6 +93,9 @@ if "db_ready" not in st.session_state:
     if not table_exists("book_eng"):
         with st.spinner("DB 생성 중…"):
             create_book_db()
+    if not table_exists("video_segments"):
+        with st.spinner("DB 생성 중…"):
+            VideoRepository.create_video_db()
     st.session_state.db_ready = True
     print("✅ DB 준비 완료")
 
