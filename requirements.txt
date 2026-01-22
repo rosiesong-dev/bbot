@@ -8,3 +8,9 @@ chromadb
 openai
 pymupdf
 python-dotenv
+
+# additional packages
+psycopg2-binary
+pdfplumber
+langchain_experimental
+pysrt
