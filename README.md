@@ -29,40 +29,52 @@ pip install -r requirements.txt
 ```
 
 3. 환경 변수 설정(.env)
+
+`.env.template` 파일을 복사하여 `.env` 파일 생성 후, 아래 항목들을 본인 환경에 맞게 수정
+
 ```
-UPSTAGE_API_KEY=<YOUR_UPSTAGE_API_KEY>
-UPSTAGE_BASE_URL=<YOUR_UPSTAGE_BASE_URL>
-DB_HOST=os.getenv("DB_HOST")
-DB_NAME=os.getenv("DB_NAME")
-DB_USER=os.getenv("DB_USER")
-DB_PASSWORD=os.getenv("DB_PASSWORD")
-DB_PORT=os.getenv("DB_PORT")
+UPSTAGE_API_KEY=
+UPSTAGE_BASE_URL=
+DB_HOST=
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
+DB_PORT=
 ```
 
 4.	PostgreSQL 및 pgvector 설치
+
+**Local Installation**
+
 ```
 brew install postgresql@18
 brew services start postgresql@18
 brew install pgvector
 ```
 
+**Docker Installation**
+
+```bash
+docker pull pgvector/pgvector:pg18
+./run_postgres.sh
+```
 
 ### 🧠 LangGraph 기반 질의 처리 아키텍처
 ---
 
-BeBot은 LangGraph를 사용하여 질문 처리 흐름을 **그래프 구조로 제어**합니다.  
+BeBot은 LangGraph를 사용하여 질문 처리 흐름을 **그래프 구조로 제어**합니다.
 단순 RAG가 아닌, *답변 적합성 판단과 재검색 루프*를 포함합니다.
 
 ### 🔁 Graph Flow
 
-	route → retrieve → judge  
-	        ↓  
-	      [resolved?]  
-	     ↙    ↘  
-	  generate  rewrite  
-	   ↓     ↓  
-	   END   retrieve  
-	       ↓  
+	route → retrieve → judge
+	        ↓
+	      [resolved?]
+	     ↙    ↘
+	  generate  rewrite
+	   ↓     ↓
+	   END   retrieve
+	       ↓
 	       judge
 
 
@@ -72,7 +84,7 @@ BeBot은 LangGraph를 사용하여 질문 처리 흐름을 **그래프 구조로
 		- 질문 유형 분류 (창조과학 / 성경 / 일반)
 		- 처리 전략 결정
 
-	- retrieve	
+	- retrieve
 		- PostgreSQL + pgvector 기반 문서 검색
 		- 질문 임베딩과 문서 임베딩 유사도 계산
 
@@ -103,7 +115,7 @@ BeBot은 LangGraph를 사용하여 질문 처리 흐름을 **그래프 구조로
 5. 가능 → `generate` → 답변 출력
 	불충분 → `rewrite` → 재검색 루프
 
-   
+
 
 ## 🚀 실행 방법
 1. streamlit UI 실행
@@ -117,11 +129,11 @@ streamlit run bbot_ui.py
 •	한국어/영어 자동 감지
 
 
---- 
+---
 ## 📦 최종 산출물
-	•	bbot_ui.py : Streamlit UI 
+	•	bbot_ui.py : Streamlit UI
 	•	bbot.py : 핵심 로직 및 DB 연동
-	•	bbotCss.py: UI style 	
+	•	bbotCss.py: UI style
 	•	extracted_texts : 크롤링 데이터
 	•	PostgreSQL DB (bbot_db)
 	•	.env : 환경 변수
