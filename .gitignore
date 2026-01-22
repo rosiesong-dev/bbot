@@ -12,3 +12,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Misc
+.DS_Store
