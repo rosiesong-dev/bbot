@@ -183,7 +183,7 @@ async def process_srt_file(file_path: str) -> List[Dict]:
 
 # ==================== DB Functions ====================
 def create_video_table():
-    """video_segments 테이블만 생성"""
+    """video_db 테이블만 생성"""
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")

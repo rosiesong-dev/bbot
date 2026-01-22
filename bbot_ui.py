@@ -114,7 +114,7 @@ def prepare_all_databases():
             print("✅ [2/3] 책 DB 이미 존재")
         
         # 3. 영상 DB 생성
-        if not table_exists("video_segments"):
+        if not table_exists("video_db"):
             print("\n🎬 [3/3] 영상 DB 생성 중...")
             if os.path.exists("./srt_data"):
                 create_video_db_from_folder("./srt_data")
@@ -158,7 +158,7 @@ with st.sidebar:
             if(web_exists): print("✅ [1/3] 웹 DB 존재 확인 완료")
             book_exists = table_exists("book_eng")
             if(book_exists): print("✅ [2/3] 책 DB 존재 확인 완료")
-            video_exists = table_exists("video_segments")
+            video_exists = table_exists("video_db")
             if(video_exists): print("✅ [3/3] 영상 DB 존재 확인 완료")
             
             # 하나라도 없으면 자동 생성
