@@ -13,5 +13,11 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Data
+data
+scratch
+srt_data
+books
+
 # Misc
 .DS_Store
