@@ -4,7 +4,7 @@ chroma_db/
 __pycache__/
 .env
 *.env
-
+books
 # Streamlit cache
 .streamlit/
 
