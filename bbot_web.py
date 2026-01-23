@@ -18,6 +18,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from bbot_book import retrieve_pages
+from bbot_video import retrieve_video_segments
 
 
 # ==================== 환경 변수 로드 ====================
@@ -175,67 +176,6 @@ def create_db(folder_path: str, db_name: str = "bbot_db", max_tokens: int = 4000
     cur.close()
     print("[DB] 데이터 삽입 완료\n")
 
-
-# ==================== 영상 검색 함수 ====================
-def retrieve_video_segments(question: str, top_k: int = 3):
-    """영상 세그먼트 벡터 검색"""
-    print(f"\n🎬 [Video] 영상 검색 중: {question}")
-
-    q_emb = embedding_model.embed_query(question)
-    print("🧠 질문 임베딩 생성 완료")
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            # video_segments 테이블이 있는지 확인
-            cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables
-                    WHERE table_name = 'video_segments'
-                );
-            """)
-            
-            if not cur.fetchone()[0]:
-                print("⚠️ video_segments 테이블이 없습니다.")
-                return []
-            
-            cur.execute("""
-                SELECT
-                    video_id,
-                    title,
-                    start_time,
-                    end_time,
-                    url,
-                    content
-                FROM video_segments
-                ORDER BY content_embedding <#> %s::vector
-                LIMIT %s
-            """, (q_emb, top_k))
-
-            rows = cur.fetchall()
-
-    print(f"📄 영상 검색 결과 수: {len(rows)}")
-
-    results = []
-    for r in rows:
-        video_id, title, start, end, url, content = r
-        snippet = content[:300].replace("\n", " ")
-
-        print(f"""
-   - 🎬 {title}
-     ⏱ {int(start)}s ~ {int(end)}s
-     {snippet}...
-        """)
-
-        results.append({
-            "video_id": video_id,
-            "title": title,
-            "start": start,
-            "end": end,
-            "url": url,
-            "content": content
-        })
-
-    return results
 
 
 # ==================== State 정의 ====================

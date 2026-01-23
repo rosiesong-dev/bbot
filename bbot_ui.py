@@ -18,7 +18,7 @@ load_dotenv()
 
 # ==================== 페이지 설정 ====================
 st.set_page_config(
-    page_title="Bebot",
+    page_title="BeBot",
     page_icon="💭",
     layout="wide",
     initial_sidebar_state="expanded"
