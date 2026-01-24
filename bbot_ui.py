@@ -464,7 +464,7 @@ if prompt:
                     if web_urls:
                         sources.append("\n**🌐 웹 자료:**")
                         for url in web_urls:
-                            sources.append(f"• {url}")
+                            sources.append(f"- {url}")
 
                 if sources_info.get("book_docs"):
                     book_names = list(
@@ -473,14 +473,14 @@ if prompt:
                     if len(book_names) == 1:
                         book_name = book_names[0]
                         pages = ", ".join(
-                            str(d["page"]) for d in sources_info["book_docs"]
+                            "p" + str(d["page"]) for d in sources_info["book_docs"]
                         )
                         sources.append(f"\n**📖 책 자료:**")
-                        sources.append(f"• {book_name} - 페이지 {pages}")
+                        sources.append(f"- {book_name} ({pages})")
                     else:
                         sources.append(f"\n**📖 책 자료:**")
                         for doc in sources_info["book_docs"]:
-                            sources.append(f"• {doc['book']} - 페이지 {doc['page']}")
+                            sources.append(f"- {doc['book']} (p{doc['page']})")
 
                 if sources_info.get("video_docs"):
                     sources.append("\n**🎬 영상 자료:**")
