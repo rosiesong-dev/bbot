@@ -6,7 +6,7 @@ from bbot_video import create_video_db_from_folder
 import os
 import psycopg2
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from bbotCss import CSS
 st.markdown(CSS, unsafe_allow_html=True)
@@ -135,6 +135,13 @@ def prepare_all_databases():
         traceback.print_exc()
         return False
 
+
+# utils
+def format_timedelta(td: timedelta) -> str:
+    total_seconds = int(td.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 # ==================== 사이드바 ====================
 with st.sidebar:
@@ -435,7 +442,16 @@ if prompt:
                 if sources_info.get("video_docs"):
                     sources.append("\n**🎬 영상 자료:**")
                     for doc in sources_info["video_docs"]:
-                        sources.append(f"• [{doc['title']}]({doc['url']}) - {int(doc['start'])}초~{int(doc['end'])}초")
+                        
+                        total_seconds_start = int(doc['start'])
+                        video_start = timedelta(seconds=total_seconds_start)
+                        video_start = format_timedelta(video_start)
+
+                        total_seconds_end = int(doc['end'])
+                        video_end = timedelta(seconds=total_seconds_end)
+                        video_end = format_timedelta(video_end)
+
+                        sources.append(f"- [{doc['title']}]({doc['url']}) ({video_start}-{video_end})")
                 
                 if sources:
                     st.markdown("\n---\n" + "\n".join(sources))
