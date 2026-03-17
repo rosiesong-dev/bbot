@@ -1,0 +1,5 @@
+Title: Yeast DNA에서 언어 구조의 존재 : 창조 설계-지적설계 [한국창조과학회 자료실]
+URL: https://creation.kr/IntelligentDesign/?bmode=view&idx=1291614
+Crawl Time: 2006-04-22T12:00:00+09:00
+Content:
+Yeast DNA에서 언어 구조의 존재요 지본 논문에서는 yeast (16개 염색체) 염색체의 genome의 코돈과 아미노산에 대해 Zipf 분석과 엔트로피 분석을 수행한다. 이로부터 통사구조가 전혀 알려지지 않은 DNA의 코돈(또는 아미노산)에 대해 이들을 분류하고 이들에게 문법적 속성을 부여할 수 있음을 보인다. 또한 코돈과 아미노산의 문법적 속성이 단백질의 2차 구조와 관련 있음을 보인다.AbstractIn this article we perform the Zipf analysis and the entropy one for codons and amino acids of yeast 16 chromosomes. From this, we can classify the role of the grammar in codons and amino acids of DNA, whose grammatic roles are not known yet. Also we show that the grammatic role might be related with the secondary structure of protein.출처 - 창조과학학술지 2005구분 - 2옛 주소 - http://www.kacr.or.kr/library/itemview.asp?no=3261참고 :
