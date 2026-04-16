@@ -12,6 +12,7 @@ from langchain_experimental.text_splitter import SemanticChunker
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
+import unicodedata
 
 from config import get_conn, EMBED_DIM
 from llm_factory import get_embedding, get_llm
@@ -20,7 +21,7 @@ embedding_model = get_embedding()
 llm_model       = get_llm()
 
 # ==================== 경로 설정 ====================
-PDF_PATH   = "./books/CaseForACreator-Strobel.pdf"
+BOOKS_FOLDER = "./books"
 WEB_FOLDER = "./extracted_texts"
 SRT_FOLDER = "./srt_data"
 
@@ -126,44 +127,81 @@ def create_web_db(folder_path: str, max_tokens: int = 4000):
 def create_book_db():
     print("\n📚 [2/3] 책 DB 생성 시작...")
 
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            cur.execute(f"""
-                CREATE TABLE IF NOT EXISTS book_eng (
-                    id SERIAL PRIMARY KEY,
-                    book_name TEXT, page_num INT,
-                    content TEXT, embedding vector({EMBED_DIM})
-                );
-            """)
-            conn.commit()
+    for lang in ["en", "ko"]:
+        folder_path = os.path.join(BOOKS_FOLDER, lang)
 
-    book_name = os.path.basename(PDF_PATH).replace(".pdf", "")
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM book_eng WHERE book_name = %s", (book_name,))
-            if cur.fetchone()[0] > 0:
-                print(f"   '{book_name}' 이미 존재 → 스킵\n")
-                return
+        if not os.path.exists(folder_path):
+            print(f"   ⚠️ {folder_path} 없음 → 스킵")
+            continue
 
-    with pdfplumber.open(PDF_PATH) as pdf:
-        total, inserted = len(pdf.pages), 0
-        print(f"   총 {total} 페이지")
+        table_name = f"book_{lang}"
+
+        # 테이블 생성
         with get_conn() as conn:
             with conn.cursor() as cur:
-                for i, page in enumerate(pdf.pages, 1):
-                    text = page.extract_text()
-                    if not text or len(text.strip()) < 50: continue
-                    vec = embedding_model.embed_query(text)
-                    cur.execute("""
-                        INSERT INTO book_eng (book_name, page_num, content, embedding)
-                        VALUES (%s, %s, %s, %s::vector)
-                    """, (book_name, i, text, vec))
-                    inserted += 1
-                    if i % 10 == 0: print(f"   페이지 {i}/{total}...")
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                cur.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {table_name} (
+                        id SERIAL PRIMARY KEY,
+                        book_name TEXT,
+                        page_num INT,
+                        content TEXT,
+                        embedding vector({EMBED_DIM})
+                    );
+                """)
                 conn.commit()
 
-    print(f"✅ 책 DB 완료 ({inserted}페이지)\n")
+        pdf_files = [f for f in os.listdir(folder_path) if f.endswith(".pdf")]
+        print(f"\n📂 [{lang}] 총 {len(pdf_files)}개 PDF")
+
+        for pdf_file in pdf_files:
+            pdf_path = os.path.join(folder_path, pdf_file)
+            book_name = pdf_file.replace(".pdf", "")
+
+            # 중복 체크
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE book_name = %s", (book_name,))
+                    if cur.fetchone()[0] > 0:
+                        print(f"   '{book_name}' 이미 존재 → 스킵")
+                        continue
+
+            try:
+                with pdfplumber.open(pdf_path) as pdf:
+                    total, inserted = len(pdf.pages), 0
+                    print(f"   📖 {book_name} ({total} 페이지)")
+
+                    with get_conn() as conn:
+                        with conn.cursor() as cur:
+                            for i, page in enumerate(pdf.pages, 1):
+                                text = page.extract_text()
+
+                                if not text or len(text.strip()) < 50:
+                                    continue
+
+                                # 🔥 핵심: embedding 실패해도 계속 진행
+                                try:
+                                    vec = embedding_model.embed_query(text)
+                                except Exception as e:
+                                    print(f"      ⚠️ embedding 실패 (page {i})")
+                                    vec = [0.0] * EMBED_DIM
+
+                                cur.execute(f"""
+                                    INSERT INTO {table_name} (book_name, page_num, content, embedding)
+                                    VALUES (%s, %s, %s, %s::vector)
+                                """, (book_name, i, text, vec))
+
+                                inserted += 1
+
+                                if i % 10 == 0:
+                                    print(f"      페이지 {i}/{total}...")
+
+                            conn.commit()
+
+                print(f"   ✅ {book_name} 완료 ({inserted}페이지)")
+
+            except Exception as e:
+                print(f"   ❌ {book_name} 처리 실패 → {e}")
 
 
 # ==================== [3] 영상 DB ====================
@@ -323,25 +361,32 @@ def init_all():
     print("="*60)
 
     if table_exists("crawled_data"):
-        print("✅ [1/3] 웹 DB 이미 존재 → 스킵")
+        print("✅ [1/4] 웹 DB 이미 존재 → 스킵")
     elif os.path.exists(WEB_FOLDER):
         create_web_db(WEB_FOLDER)
     else:
-        print(f"⚠️ [1/3] {WEB_FOLDER} 없음 → 스킵")
+        print(f"⚠️ [1/4] {WEB_FOLDER} 없음 → 스킵")
 
-    if table_exists("book_eng"):
-        print("✅ [2/3] 책 DB 이미 존재 → 스킵")
-    elif os.path.exists(PDF_PATH):
+    if table_exists("book_en"):
+        print("✅ [2/4] 영어책 DB 이미 존재 → 스킵")
+    elif os.path.exists(BOOKS_FOLDER):
         create_book_db()
     else:
-        print(f"⚠️ [2/3] {PDF_PATH} 없음 → 스킵")
+        print(f"⚠️ [2/4] {BOOKS_FOLDER} 없음 → 스킵")
+
+    if table_exists("book_ko"):
+        print("✅ [3/4] 한글책 DB 이미 존재 → 스킵")
+    elif os.path.exists(BOOKS_FOLDER):
+        create_book_db()
+    else:
+        print(f"⚠️ [3/4] {BOOKS_FOLDER} 없음 → 스킵")
 
     if table_exists("video_db"):
-        print("✅ [3/3] 영상 DB 이미 존재 → 스킵")
+        print("✅ [4/4] 영상 DB 이미 존재 → 스킵")
     elif os.path.exists(SRT_FOLDER):
         create_video_db(SRT_FOLDER)
     else:
-        print(f"⚠️ [3/3] {SRT_FOLDER} 없음 → 스킵")
+        print(f"⚠️ [4/4] {SRT_FOLDER} 없음 → 스킵")
 
     print("\n" + "="*60)
     print("===== DB 초기화 완료 =====")
