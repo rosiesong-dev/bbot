@@ -5,12 +5,12 @@ load_dotenv()
 
 # ==================== Provider 선택 ====================
 # .env 파일에 PROVIDER=openai 또는 PROVIDER=upstage 설정
-PROVIDER = os.getenv("PROVIDER", "upstage")
+PROVIDER = os.getenv("PROVIDER", "openai")
 
 # ==================== Upstage ====================
 UPSTAGE_API_KEY  = os.getenv("UPSTAGE_API_KEY")
 UPSTAGE_BASE_URL = os.getenv("UPSTAGE_BASE_URL", "https://api.upstage.ai/v1/solar")
-UPSTAGE_LLM_MODEL   = os.getenv("UPSTAGE_LLM_MODEL",   "solar-pro2")
+UPSTAGE_LLM_MODEL   = os.getenv("UPSTAGE_LLM_MODEL",   "solar-pro3")
 UPSTAGE_EMBED_MODEL = os.getenv("UPSTAGE_EMBED_MODEL",  "embedding-query")
 UPSTAGE_EMBED_DIM   = 4096
 
