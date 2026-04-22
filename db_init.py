@@ -1,5 +1,5 @@
 # DB 초기화 전용 — python db_init.py 로 최초 1회 실행
-
+import pandas as pd
 import os
 import asyncio
 import pdfplumber
@@ -199,9 +199,14 @@ def create_book_db():
                             conn.commit()
 
                 print(f"   ✅ {book_name} 완료 ({inserted}페이지)")
+    
 
             except Exception as e:
                 print(f"   ❌ {book_name} 처리 실패 → {e}")
+
+        if lang == "ko":
+            excel_path = f"./image_data/{book_name}.xlsx"
+            insert_images_from_excel(excel_path, book_name)
 
 
 # ==================== [3] 영상 DB ====================
@@ -353,12 +358,69 @@ def create_video_db(srt_folder: str):
 
     print("✅ 영상 DB 완료\n")
 
+# ==================== 이미지 DB ====================
+def create_image_table():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS book_images (
+                    id SERIAL PRIMARY KEY,
+                    book_name TEXT NOT NULL,
+                    page_num INT NOT NULL,
+                    file_name TEXT,
+                    file_path TEXT
+                );
+            """)
+            conn.commit()
+    print("🖼️ book_images 테이블 준비 완료")
+
+
+def insert_images_from_excel(excel_path, book_name):
+    if not os.path.exists(excel_path):
+        print(f"⚠️ 이미지 엑셀 없음 → {excel_path}")
+        return
+
+    df = pd.read_excel(excel_path)
+    print(f"🖼️ {book_name} 이미지 {len(df)}개 발견")
+
+    inserted = 0
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for _, row in df.iterrows():
+                try:
+                    page_num = int(row.get("page", row.get("page_num")))
+                    file_name = row["file_name"]
+                    file_path = str(row["file_path"]).replace("\\", "/")
+
+                    # jpx 스킵 (선택)
+                    if "original_format" in row and row["original_format"] == "jpx":
+                        continue
+
+                    cur.execute("""
+                        INSERT INTO book_images (book_name, page_num, file_name, file_path)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                    """, (book_name, page_num, file_name, file_path))
+
+                    inserted += 1
+
+                except Exception as e:
+                    print(f"   ⚠️ 이미지 insert 실패 → {e}")
+
+        conn.commit()
+
+    print(f"✅ {book_name} 이미지 {inserted}개 저장 완료")
+
 
 # ==================== 전체 초기화 ====================
 def init_all():
     print("\n" + "="*60)
     print("===== BeBot DB 초기화 시작 =====")
     print("="*60)
+
+    
+    create_image_table()
 
     if table_exists("crawled_data"):
         print("✅ [1/4] 웹 DB 이미 존재 → 스킵")
@@ -367,19 +429,12 @@ def init_all():
     else:
         print(f"⚠️ [1/4] {WEB_FOLDER} 없음 → 스킵")
 
-    if table_exists("book_en"):
-        print("✅ [2/4] 영어책 DB 이미 존재 → 스킵")
-    elif os.path.exists(BOOKS_FOLDER):
+    if os.path.exists(BOOKS_FOLDER):
         create_book_db()
     else:
-        print(f"⚠️ [2/4] {BOOKS_FOLDER} 없음 → 스킵")
+        print("⚠️ books 폴더 없음")
 
-    if table_exists("book_ko"):
-        print("✅ [3/4] 한글책 DB 이미 존재 → 스킵")
-    elif os.path.exists(BOOKS_FOLDER):
-        create_book_db()
-    else:
-        print(f"⚠️ [3/4] {BOOKS_FOLDER} 없음 → 스킵")
+
 
     if table_exists("video_db"):
         print("✅ [4/4] 영상 DB 이미 존재 → 스킵")
