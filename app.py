@@ -187,13 +187,13 @@ if not st.session_state.messages:
     col1, col2, col3 = st.columns(3)
     example_prompt = None
     with col1:
-        if st.button("🌍 창조과학이란?", use_container_width=True):
+        if st.button("🌍 What is Creation Science?", use_container_width=True):
             example_prompt = "창조과학이 무엇인가요?"
     with col2:
-        if st.button("🦴 화석은 어떻게?", use_container_width=True):
+        if st.button("🦴 How are fossils interpreted?", use_container_width=True):
             example_prompt = "화석은 진화론을 지지하나요?"
     with col3:
-        if st.button("📖 창세기 해석", use_container_width=True):
+        if st.button("📖 How should we interpret Genesis 1?", use_container_width=True):
             example_prompt = "창세기 1장을 어떻게 이해해야 하나요?"
     st.markdown("---")
 else:
@@ -208,7 +208,7 @@ for msg in st.session_state.messages:
         if msg["role"] == "assistant" and "video_source" in msg and msg["video_source"]:
             video_info = msg["video_source"]
             st.markdown("---")
-            st.markdown("### 🎬 참고 영상")
+            st.markdown("### 🎬 Reference Video")
             if "youtu.be" in video_info["url"] or "youtube.com" in video_info["url"]:
                 video_id = (
                     video_info["url"].split("youtu.be/")[-1].split("?")[0]
@@ -272,7 +272,7 @@ if prompt:
                     top_video = sources_info["video_docs"][0]
                     video_source = {"title": top_video["title"], "url": top_video["url"], "start": top_video["start"]}
                     st.markdown("---")
-                    st.markdown("### 🎬 참고 영상")
+                    st.markdown("### 🎬 Reference Video")
                     if "youtu.be" in top_video["url"] or "youtube.com" in top_video["url"]:
                         video_id = (
                             top_video["url"].split("youtu.be/")[-1].split("?")[0]
@@ -294,13 +294,13 @@ if prompt:
                 if sources_info.get("web_docs"):
                     web_urls = list(set([d["url"] for d in sources_info["web_docs"] if d.get("url")]))
                     if web_urls:
-                        sources.append("\n**🌐 웹 자료:**")
+                        sources.append("\n**🌐 Web Resources:**")
                         for url in web_urls:
                             sources.append(f"- {url}")
 
                 if sources_info.get("book_docs"):
                     book_names = list(set([d["book"] for d in sources_info["book_docs"]]))
-                    sources.append("\n**📖 책 자료:**")
+                    sources.append("\n**📖 Book Resources:**")
                     if len(book_names) == 1:
                         pages = ", ".join("p" + str(d["page"]) for d in sources_info["book_docs"])
                         sources.append(f"- {book_names[0]} ({pages})")
@@ -309,7 +309,7 @@ if prompt:
                             sources.append(f"- {doc['book']} (p{doc['page']})")
 
                 if sources_info.get("video_docs"):
-                    sources.append("\n**🎬 영상 자료:**")
+                    sources.append("\n**🎬 Reference Videos:**")
                     for doc in sources_info["video_docs"]:
                         start = format_timedelta(timedelta(seconds=int(doc["start"])))
                         end = format_timedelta(timedelta(seconds=int(doc["end"])))
