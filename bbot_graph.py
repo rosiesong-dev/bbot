@@ -28,6 +28,7 @@ class GraphState(TypedDict):
     documents: List[dict]
     judgement: str
     iteration: int
+    chat_history: List[str]
 
 
 # ==================== Utility ====================
@@ -44,10 +45,16 @@ def detect_language(text: str) -> str:
     return "ko" if any("\uac00" <= c <= "\ud7a3" for c in text) else "en"
 
 
-# ==================== 병렬 통합 검색 ====================
+def format_chat_history(history: List[str]) -> str:
+    if not history:
+        return "이전 대화 없음"
+    return "\n".join(history)
+
+
+# ==================== Parallel Retrieval ====================
 
 def retrieve_all_documents_parallel(question: str, top_k: int = 3):
-    print("🔍 [Retrieve] Parallel search..\n")
+    print("🔍 [Retrieve] Parallel search started...\n")
 
     with ThreadPoolExecutor(max_workers=3) as executor:
         future_web = executor.submit(
@@ -95,7 +102,7 @@ def route_question(state: GraphState) -> GraphState:
 
 
 def retrieve_documents(state: GraphState) -> GraphState:
-    print("🌐 [Retrieve] Parallel search...\n")
+    print("🌐 [Retrieve] Integrated retrieval...\n")
 
     query = state.get("rewritten_question") or state["question"]
 
@@ -168,7 +175,6 @@ Documents:
             "judgement",
             "not_resolved"
         )
-
     except Exception:
         judgement = "not_resolved"
 
@@ -249,37 +255,15 @@ def decide_to_rewrite(
 def create_graph():
     workflow = StateGraph(GraphState)
 
-    workflow.add_node(
-        "route",
-        route_question
-    )
-
-    workflow.add_node(
-        "retrieve",
-        retrieve_documents
-    )
-
-    workflow.add_node(
-        "judge",
-        judge_documents
-    )
-
-    workflow.add_node(
-        "rewrite",
-        rewrite_question
-    )
+    workflow.add_node("route", route_question)
+    workflow.add_node("retrieve", retrieve_documents)
+    workflow.add_node("judge", judge_documents)
+    workflow.add_node("rewrite", rewrite_question)
 
     workflow.set_entry_point("route")
 
-    workflow.add_edge(
-        "route",
-        "retrieve"
-    )
-
-    workflow.add_edge(
-        "retrieve",
-        "judge"
-    )
+    workflow.add_edge("route", "retrieve")
+    workflow.add_edge("retrieve", "judge")
 
     workflow.add_conditional_edges(
         "judge",
@@ -290,10 +274,7 @@ def create_graph():
         }
     )
 
-    workflow.add_edge(
-        "rewrite",
-        "retrieve"
-    )
+    workflow.add_edge("rewrite", "retrieve")
 
     return workflow.compile(
         checkpointer=MemorySaver()
@@ -302,7 +283,7 @@ def create_graph():
 
 # ==================== Final Generate ====================
 
-def generate(question: str):
+def generate(question: str, thread_id: str = "user_1"):
     print("\n" + "=" * 60)
     print("===== Integrated Search Started =====")
     print("=" * 60)
@@ -317,16 +298,19 @@ def generate(question: str):
             "route": "",
             "documents": [],
             "judgement": "",
-            "iteration": 0
+            "iteration": 0,
+            "chat_history": []
         },
         {
             "configurable": {
-                "thread_id": "1"
+                "thread_id": thread_id
             }
         }
     )
 
     all_docs = graph_result.get("documents", [])
+    chat_history = graph_result.get("chat_history", [])
+    history_text = format_chat_history(chat_history)
 
     if not all_docs:
         return "📘 관련 정보를 찾을 수 없습니다.", {}
@@ -353,13 +337,12 @@ def generate(question: str):
 
     if video_docs:
         context_parts.append("🎬 Video Resources")
-
         for i, doc in enumerate(video_docs, 1):
             context_parts.append(
                 f"[Video {i}] "
                 f"{doc.get('title', '')} "
                 f"({format_timedelta(doc.get('start', 0))}"
-                f"~{format_timedelta(doc.get('end', 0))})"
+                f" ~ {format_timedelta(doc.get('end', 0))})"
             )
             context_parts.append(
                 doc.get("content", "")[:800]
@@ -367,7 +350,6 @@ def generate(question: str):
 
     if web_docs:
         context_parts.append("📰 Web Resources")
-
         for i, doc in enumerate(web_docs, 1):
             context_parts.append(
                 f"[Web {i}] {doc.get('title', '')}"
@@ -378,7 +360,6 @@ def generate(question: str):
 
     if book_docs:
         context_parts.append("📖 Book Resources")
-
         for i, doc in enumerate(book_docs, 1):
             context_parts.append(
                 f"[{doc.get('book', '')} "
@@ -395,6 +376,8 @@ def generate(question: str):
 
 규칙:
 - 반드시 제공된 자료만 활용
+- 이전 대화 흐름을 반드시 고려
+- 사용자의 후속 질문을 자연스럽게 이해
 - 🌍 과학적 관점 / 📜 성경적 관점으로 구분
 - 서론 없이 바로 답변
 - 명확하고 이해하기 쉽게 작성
@@ -414,6 +397,7 @@ def generate(question: str):
             {
                 "role": "user",
                 "content":
+                    f"[이전 대화]\n{history_text}\n\n"
                     f"[자료]\n{context}\n\n"
                     f"[질문]\n{question}"
             }
@@ -423,10 +407,16 @@ def generate(question: str):
 
     answer = res.choices[0].message.content
 
+    updated_history = chat_history + [
+        f"User: {question}",
+        f"Assistant: {answer}"
+    ]
+
     print("✅ Integrated answer completed!\n")
 
     return answer, {
         "video_docs": video_docs,
         "web_docs": web_docs,
-        "book_docs": book_docs
+        "book_docs": book_docs,
+        "chat_history": updated_history
     }
