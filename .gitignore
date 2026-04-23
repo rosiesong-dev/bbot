@@ -1,0 +1,5 @@
+.env
+.DS_Store
+__pycache__/
+ragas_result.txt
+ragas_test.py
