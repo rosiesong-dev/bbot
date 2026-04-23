@@ -2,11 +2,6 @@ import time
 from datetime import timedelta
 from bbot_graph import generate
 
-from ragas import evaluate
-from datasets import Dataset
-from ragas.metrics import Faithfulness, AnswerRelevancy
-
-
 def format_timedelta(td: timedelta) -> str:
     total = int(td.total_seconds())
     h, r = divmod(total, 3600)
@@ -69,42 +64,7 @@ if __name__ == "__main__":
             if not contexts:
                 contexts = ["No context available"]
 
-            # =========================
-            # 3. RAGAS Evaluation
-            # =========================
-            dataset = Dataset.from_dict({
-                "question": [question],
-                "answer": [answer],
-                "contexts": [contexts],
-                "ground_truth": [
-                    "Reference answer placeholder"
-                ]
-            })
-
-            result = evaluate(
-                dataset,
-                metrics=[
-                    Faithfulness(),
-                    AnswerRelevancy()
-                ]
-            )
-
-            print("\n📊 RAGAS SCORE")
-            print(result)
-
-            # =========================
-            # 4. TXT 파일 저장
-            # =========================
-            with open("ragas_result.txt", "a", encoding="utf-8") as f:
-                f.write("\n" + "=" * 80 + "\n")
-                f.write(f"Question: {question}\n\n")
-                f.write(f"Answer:\n{answer}\n\n")
-                f.write(f"RAGAS SCORE:\n{result}\n")
-                f.write(f"Duration: {elapsed:.2f} seconds\n")
-                f.write("=" * 80 + "\n")
-
-            print("\n✅ RAGAS results have been saved to ragas_result.txt.")
-
+            
             # =========================
             # 5. Sources 출력
             # =========================
