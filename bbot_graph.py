@@ -16,6 +16,8 @@ from bbot_web import retrieve_web_documents
 from bbot_book import retrieve_pages
 from bbot_video import retrieve_video_segments
 
+from redis_cache import get_cached_answer, save_cached_answer
+
 client = get_client()
 
 
@@ -289,6 +291,22 @@ def generate(question: str, thread_id: str = "user_1"):
     print("=" * 60)
     print(f"💁‍♂️ Question: {question}\n")
 
+    # =========================
+    # 1. Redis Exact Cache 확인
+    # =========================
+
+    cached = get_cached_answer(question)
+
+    if cached:
+        print("⚡ Redis Cache Hit!\n")
+        return cached["answer"], cached["sources"]
+
+    print("❌ Cache Miss → RAG 실행\n")
+
+    # =========================
+    # 2. LangGraph + RAG 실행
+    # =========================
+
     graph = create_graph()
 
     graph_result = graph.invoke(
@@ -414,9 +432,25 @@ def generate(question: str, thread_id: str = "user_1"):
 
     print("✅ Integrated answer completed!\n")
 
-    return answer, {
+    sources = {
         "video_docs": video_docs,
         "web_docs": web_docs,
         "book_docs": book_docs,
         "chat_history": updated_history
     }
+
+    # =========================
+    # 3. Redis Cache 저장
+    # =========================
+
+    save_cached_answer(
+        question,
+        {
+            "answer": answer,
+            "sources": sources
+        }
+    )
+
+    print("💾 Redis Cache Saved!\n")
+
+    return answer, sources
