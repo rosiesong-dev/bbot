@@ -1,3 +1,5 @@
+## Parallel Retrieval
+
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
@@ -58,7 +60,7 @@ def format_chat_history(history: List[str]) -> str:
 def retrieve_all_documents_parallel(question: str, top_k: int = 3):
     print("🔍 [Retrieve] Parallel search started...\n")
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
+    with ThreadPoolExecutor(max_workers=5) as executor:
         future_web = executor.submit(
             retrieve_web_documents,
             question,
@@ -126,7 +128,6 @@ def judge_documents(state: GraphState) -> GraphState:
 
     if not docs:
         print("[Judge] No documents found → not_resolved\n")
-
         return {
             **state,
             "judgement": "not_resolved"
@@ -170,9 +171,7 @@ Documents:
 
     try:
         content = res.choices[0].message.content
-        json_obj = json.loads(
-            content[content.find("{"):]
-        )
+        json_obj = json.loads(content[content.find("{"):])
         judgement = json_obj.get(
             "judgement",
             "not_resolved"
@@ -291,10 +290,7 @@ def generate(question: str, thread_id: str = "user_1"):
     print("=" * 60)
     print(f"💁‍♂️ Question: {question}\n")
 
-    # =========================
-    # 1. Redis Exact Cache 확인
-    # =========================
-
+    # Redis Cache 확인
     cached = get_cached_answer(question)
 
     if cached:
@@ -303,10 +299,7 @@ def generate(question: str, thread_id: str = "user_1"):
 
     print("❌ Cache Miss → RAG 실행\n")
 
-    # =========================
-    # 2. LangGraph + RAG 실행
-    # =========================
-
+    # LangGraph 실행
     graph = create_graph()
 
     graph_result = graph.invoke(
@@ -333,17 +326,20 @@ def generate(question: str, thread_id: str = "user_1"):
     if not all_docs:
         return "📘 관련 정보를 찾을 수 없습니다.", {}
 
+    # 중요: video 먼저 분류
     web_docs = []
     book_docs = []
     video_docs = []
 
     for doc in all_docs:
-        if "url" in doc:
-            web_docs.append(doc)
+        if "start" in doc and "end" in doc:
+            video_docs.append(doc)
+
         elif "book" in doc:
             book_docs.append(doc)
-        elif "start" in doc and "end" in doc:
-            video_docs.append(doc)
+
+        elif "url" in doc:
+            web_docs.append(doc)
 
     lang_instruction = (
         "한국어로 답변하세요."
@@ -355,6 +351,7 @@ def generate(question: str, thread_id: str = "user_1"):
 
     if video_docs:
         context_parts.append("🎬 Video Resources")
+
         for i, doc in enumerate(video_docs, 1):
             context_parts.append(
                 f"[Video {i}] "
@@ -368,6 +365,7 @@ def generate(question: str, thread_id: str = "user_1"):
 
     if web_docs:
         context_parts.append("📰 Web Resources")
+
         for i, doc in enumerate(web_docs, 1):
             context_parts.append(
                 f"[Web {i}] {doc.get('title', '')}"
@@ -378,6 +376,7 @@ def generate(question: str, thread_id: str = "user_1"):
 
     if book_docs:
         context_parts.append("📖 Book Resources")
+
         for i, doc in enumerate(book_docs, 1):
             context_parts.append(
                 f"[{doc.get('book', '')} "
@@ -397,7 +396,6 @@ def generate(question: str, thread_id: str = "user_1"):
 - 이전 대화 흐름을 반드시 고려
 - 사용자의 후속 질문을 자연스럽게 이해
 - 🌍 과학적 관점 / 📜 성경적 관점으로 구분
-- 서론 없이 바로 답변
 - 명확하고 이해하기 쉽게 작성
 
 {lang_instruction}
@@ -439,10 +437,7 @@ def generate(question: str, thread_id: str = "user_1"):
         "chat_history": updated_history
     }
 
-    # =========================
-    # 3. Redis Cache 저장
-    # =========================
-
+    # Redis Cache 저장
     save_cached_answer(
         question,
         {
