@@ -178,8 +178,6 @@ def create_book_db():
 
                                 if not text or len(text.strip()) < 50:
                                     continue
-
-                                # 🔥 핵심: embedding 실패해도 계속 진행
                                 try:
                                     vec = embedding_model.embed_query(text)
                                 except Exception as e:
