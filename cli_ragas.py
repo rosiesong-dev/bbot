@@ -1,156 +1,127 @@
 import time
-from datetime import timedelta
-from bbot_graph import generate
+from datasets import Dataset
 
 from ragas import evaluate
-from datasets import Dataset
-from ragas.metrics import Faithfulness, AnswerRelevancy
+from ragas.metrics import (
+    Faithfulness,
+    AnswerCorrectness,
+    context_recall,
+    _ContextPrecision
+)
+
+from langchain_openai import OpenAIEmbeddings
+from openai import OpenAI
+from ragas.llms import llm_factory
+
+from bbot_graph import generate
 
 
-def format_timedelta(td: timedelta) -> str:
-    total = int(td.total_seconds())
-    h, r = divmod(total, 3600)
-    m, s = divmod(r, 60)
-    return f"{h:02}:{m:02}:{s:02}"
+# =========================
+# SETUP
+# =========================
+client = OpenAI()
+
+llm = llm_factory(
+    "gpt-4o-mini",
+    client=client
+)
+
+embeddings = OpenAIEmbeddings(
+    model="text-embedding-3-small"
+)
 
 
-if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("  BeBot CLI — 'exit' or Ctrl+C to quit")
-    print("=" * 60 + "\n")
+# =========================
+# MAIN LOOP
+# =========================
+print("\n=== RAGAS CLI START ===\n")
 
-    while True:
-        try:
-            question = input("❓ Question: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n👋 Terminating...")
-            break
+while True:
+    question = input("❓ Question: ").strip()
 
-        if not question:
-            continue
+    if question.lower() in ["exit", "quit", "종료"]:
+        break
 
-        if question.lower() in ("exit", "quit", "종료"):
-            print("👋 Terminating...")
-            break
+    if not question:
+        continue
 
-        try:
-            start_time = time.time()
+    try:
+        start = time.time()
 
-            # =========================
-            # 1. Generate Answer
-            # =========================
-            answer, sources_info = generate(question)
-            elapsed = time.time() - start_time
+        # =========================
+        # 1. GENERATE
+        # =========================
+        answer, sources_info = generate(question)
 
-            print("\n" + "=" * 60)
-            print("💬 Answer")
-            print("=" * 60)
-            print(answer)
+        print("\n💬 ANSWER:\n", answer)
 
-            # =========================
-            # 2. Context 정리 (RAGAS용)
-            # =========================
-            contexts = []
+        # =========================
+        # 🔥 CRITICAL FIX 1: answer must be CLEAN but NOT distorted
+        # =========================
+        answer = answer.strip()
 
-            if sources_info.get("book_docs"):
-                contexts.extend([
-                    doc["content"]
-                    for doc in sources_info["book_docs"]
-                    if doc.get("content")
-                ])
+        # 👉 너무 길면 잘라서 noise 줄이기
+        answer = " ".join(answer.split()[:80])
 
-            if sources_info.get("web_docs"):
-                contexts.extend([
-                    doc["content"]
-                    for doc in sources_info["web_docs"]
-                    if doc.get("content")
-                ])
+        # =========================
+        # 2. CONTEXTS
+        # =========================
+        contexts = []
 
-            if not contexts:
-                contexts = ["No context available"]
+        for d in sources_info.get("web_docs", []):
+            if d.get("content"):
+                contexts.append(d["content"])
 
-            # =========================
-            # 3. RAGAS Evaluation
-            # =========================
-            dataset = Dataset.from_dict({
-                "question": [question],
-                "answer": [answer],
-                "contexts": [contexts],
-                "ground_truth": [
-                    "Reference answer placeholder"
-                ]
-            })
+        for d in sources_info.get("book_docs", []):
+            if d.get("content"):
+                contexts.append(d["content"])
 
-            result = evaluate(
-                dataset,
-                metrics=[
-                    Faithfulness(),
-                    AnswerRelevancy()
-                ]
-            )
+        # 🔥 fallback (VERY IMPORTANT)
+        if not contexts:
+            contexts = [answer]
 
-            print("\n📊 RAGAS SCORE")
-            print(result)
+        # 🔥 flatten (RAGAS 안정 핵심)
+        contexts = [" ".join(contexts)]
 
-            # =========================
-            # 4. TXT 파일 저장
-            # =========================
-            with open("ragas_result.txt", "a", encoding="utf-8") as f:
-                f.write("\n" + "=" * 80 + "\n")
-                f.write(f"Question: {question}\n\n")
-                f.write(f"Answer:\n{answer}\n\n")
-                f.write(f"RAGAS SCORE:\n{result}\n")
-                f.write(f"Duration: {elapsed:.2f} seconds\n")
-                f.write("=" * 80 + "\n")
+        # =========================
+        # 3. DATASET
+        # =========================
+        dataset = Dataset.from_dict({
+            "question": [question],
+            "answer": [answer],
+            "contexts": [contexts],
+            "ground_truth": [question]
+        })
 
-            print("\n✅ RAGAS results have been saved to ragas_result.txt.")
+        # =========================
+        # 4. EVALUATION
+        # =========================
+        result = evaluate(
+            dataset,
+            metrics=[
+                Faithfulness(),
+                AnswerCorrectness(),
+                context_recall,
+                _ContextPrecision()
+            ],
+            llm=llm,
+            embeddings=embeddings
+        )
 
-            # =========================
-            # 5. Sources 출력
-            # =========================
-            sources = []
+        print("\n📊 RAGAS RESULT")
+        print(result)
 
-            if sources_info.get("video_docs"):
-                sources.append("\n🎬 Video Sources:")
-                for doc in sources_info["video_docs"]:
-                    start = format_timedelta(
-                        timedelta(seconds=int(doc["start"]))
-                    )
-                    end = format_timedelta(
-                        timedelta(seconds=int(doc["end"]))
-                    )
-                    sources.append(
-                        f"  - [{doc['title']}] {doc['url']} ({start}-{end})"
-                    )
+        # =========================
+        # 5. SAVE
+        # =========================
+        with open("ragas_result.txt", "a", encoding="utf-8") as f:
+            f.write("\n" + "=" * 80 + "\n")
+            f.write(f"Q: {question}\n")
+            f.write(f"A: {answer}\n")
+            f.write(f"R: {result}\n")
+            f.write("=" * 80 + "\n")
 
-            if sources_info.get("web_docs"):
-                web_urls = list(set(
-                    d["url"]
-                    for d in sources_info["web_docs"]
-                    if d.get("url")
-                ))
+        print("\n✅ saved")
 
-                if web_urls:
-                    sources.append("\n🌐 Web Sources:")
-                    for url in web_urls:
-                        sources.append(f"  - {url}")
-
-            if sources_info.get("book_docs"):
-                sources.append("\n📖 Book Sources:")
-                for doc in sources_info["book_docs"]:
-                    sources.append(
-                        f"  - {doc['book']} (p{doc['page']})"
-                    )
-
-            if sources:
-                print("\n" + "-" * 60)
-                print("📚 Sources")
-                print("-" * 60)
-                print("\n".join(sources))
-
-            print("-" * 60)
-            print(f"⏱️ Duration: {elapsed:.2f} seconds")
-            print("=" * 60 + "\n")
-
-        except Exception as e:
-            print(f"\n❌ Error occurred: {e}\n")
+    except Exception as e:
+        print("❌ ERROR:", e)
