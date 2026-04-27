@@ -19,6 +19,13 @@ from bbot_book import retrieve_pages
 from bbot_video import retrieve_video_segments
 
 from redis_cache import get_cached_answer, save_cached_answer
+import re
+
+from semantic_cache import (
+    search_semantic_cache,
+    save_semantic_cache
+)
+
 
 client = get_client()
 
@@ -53,6 +60,13 @@ def format_chat_history(history: List[str]) -> str:
     if not history:
         return "이전 대화 없음"
     return "\n".join(history)
+
+
+def normalize_query(query: str) -> str:
+    query = query.lower().strip()
+    query = re.sub(r"[^\w\s가-힣]", "", query)
+    query = re.sub(r"\s+", " ", query)
+    return query
 
 
 # ==================== Parallel Retrieval ====================
@@ -290,12 +304,30 @@ def generate(question: str, thread_id: str = "user_1"):
     print("=" * 60)
     print(f"💁‍♂️ Question: {question}\n")
 
-    # Redis Cache 확인
-    cached = get_cached_answer(question)
+    # Query normalization
+
+    normalized_question = normalize_query(question)
+
+    print(f"🔍 Normalized Query: {normalized_question}\n")
+
+    # Exact Redis Cache 확인
+
+    cached = get_cached_answer(normalized_question)
 
     if cached:
-        print("⚡ Redis Cache Hit!\n")
+        print("⚡ Exact Redis Cache Hit!\n")
         return cached["answer"], cached["sources"]
+
+    # Semantic Cache 확인
+
+    semantic_cached = search_semantic_cache(question)
+
+    if semantic_cached:
+        print("⚡ Semantic Cache Hit!\n")
+        return (
+            semantic_cached["answer"],
+            semantic_cached["sources"]
+        )
 
     print("❌ Cache Miss → RAG 실행\n")
 
@@ -437,12 +469,21 @@ def generate(question: str, thread_id: str = "user_1"):
         "chat_history": updated_history
     }
 
-    # Redis Cache 저장
+    # Exact Redis Cache 저장
     save_cached_answer(
-        question,
+        normalized_question,
         {
             "answer": answer,
             "sources": sources
+        }
+    )
+
+    # Semantic Cache 저장
+    save_semantic_cache(
+        question, 
+        {
+                "answer": answer,
+                "sources": sources
         }
     )
 
