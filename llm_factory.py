@@ -1,3 +1,6 @@
+from sentence_transformers import SentenceTransformer
+
+
 from config import (
     PROVIDER,
 
@@ -40,9 +43,8 @@ def get_llm():
         )
 
     elif PROVIDER == "gemma":
-        from sentence_transformers import SentenceTransformer
         return SentenceTransformer(
-            "google/embeddinggemma-300m"
+            "BAAI/bge-base-en-v1.5"
         )
 
     else:
