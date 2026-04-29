@@ -14,7 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 import unicodedata
 
-from config import get_conn, EMBED_DIM, PROBIDER
+from config import get_conn, EMBED_DIM, PROVIDER
 from llm_factory import get_embedding, get_llm
 
 embedding_model = get_embedding()
