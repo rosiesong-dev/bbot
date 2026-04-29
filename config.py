@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ==================== Provider ====================
-PROVIDER = os.getenv("PROVIDER", "openai")
+PROVIDER = os.getenv("PROVIDER", "gemma") # "upstage", "gemma", "openai" 
+
 
 # ==================== Upstage ====================
 UPSTAGE_API_KEY  = os.getenv("UPSTAGE_API_KEY")
@@ -19,9 +20,25 @@ OPENAI_LLM_MODEL   = os.getenv("OPENAI_LLM_MODEL",   "gpt-4o-mini")
 OPENAI_EMBED_MODEL = os.getenv("OPENAI_EMBED_MODEL",  "text-embedding-3-small")
 OPENAI_EMBED_DIM   = 1536
 
+# ==================== Gemma ====================
+GEMMA_API_KEY = os.getenv("GEMMA_API_KEY")
+GEMMA_BASE_URL = os.getenv("GEMMA_BASE_URL")
+GEMMA_LLM_MODEL = os.getenv("GEMMA_LLM_MODEL", "gemma-4")
+GEMMA_EMBED_MODEL = os.getenv("GEMMA_EMBED_MODEL","gemma-embedding")
+GEMMA_EMBED_DIM = 2560
+
+
 # ==================== 현재 Provider 기준 값 ====================
-EMBED_DIM = UPSTAGE_EMBED_DIM if PROVIDER == "upstage" else OPENAI_EMBED_DIM
-LLM_MODEL = UPSTAGE_LLM_MODEL if PROVIDER == "upstage" else OPENAI_LLM_MODEL
+if PROVIDER == "upstage":
+    EMBED_DIM = UPSTAGE_EMBED_DIM
+    LLM_MODEL = UPSTAGE_LLM_MODEL
+elif PROVIDER == "gemma":
+    EMBED_DIM = GEMMA_EMBED_DIM
+    LLM_MODEL = GEMMA_LLM_MODEL
+else:
+    EMBED_DIM = OPENAI_EMBED_DIM
+    LLM_MODEL = OPENAI_LLM_MODEL
+
 
 # ==================== DB 접속 정보 ====================
 DB_HOST     = os.getenv("DB_HOST")
