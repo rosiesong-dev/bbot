@@ -3,8 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ==================== Provider 선택 ====================
-# .env 파일에 PROVIDER=openai 또는 PROVIDER=upstage 설정
+# ==================== Provider ====================
 PROVIDER = os.getenv("PROVIDER", "openai")
 
 # ==================== Upstage ====================
