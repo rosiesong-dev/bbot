@@ -1,0 +1,234 @@
+1
+00:00:00,163 --> 00:00:05,268
+The neo-Darwinian
+theory of evolution says
+
+2
+00:00:05,268 --> 00:00:07,904
+that all life on
+earth arose from a common
+
+3
+00:00:07,904 --> 00:00:10,907
+ancestor by way of random mutations to
+
+4
+00:00:10,907 --> 00:00:14,444
+genes preserved by
+natural selection. Organisms
+
+5
+00:00:14,444 --> 00:00:17,413
+with beneficial
+mutations produced more offspring
+
+6
+00:00:17,413 --> 00:00:21,050
+than those with
+deleterious or damaging mutations.
+
+7
+00:00:21,050 --> 00:00:22,952
+Some beneficial mutations provided
+
+8
+00:00:22,952 --> 00:00:26,289
+adaptations to new or
+changed environments, producing
+
+9
+00:00:26,289 --> 00:00:29,158
+new kinds of
+organisms. In order to get extra
+
+10
+00:00:29,158 --> 00:00:32,762
+new information to
+build more complex organisms,
+
+11
+00:00:32,762 --> 00:00:37,900
+existing genes must have been
+duplicated and then mutated into something useful.
+
+12
+00:00:37,900 --> 00:00:40,803
+Right, but
+population geneticist J.B.S. Haldane
+
+13
+00:00:40,803 --> 00:00:43,639
+realized that when a
+beneficial mutation occurs
+
+14
+00:00:43,639 --> 00:00:46,709
+in a population,
+the number of copies of that
+
+15
+00:00:46,709 --> 00:00:50,380
+mutation must increase
+over time for the population
+
+16
+00:00:50,380 --> 00:00:53,149
+to progress evolutionarily. It has to
+
+17
+00:00:53,149 --> 00:00:56,953
+substitute for the
+non-mutated genes in the population.
+
+18
+00:00:56,953 --> 00:00:59,422
+But the rate at which this can happen is
+
+19
+00:00:59,422 --> 00:01:03,326
+limited. Haldane
+realized that there hasn't been enough
+
+20
+00:01:03,326 --> 00:01:06,596
+time to accumulate
+enough beneficial mutations
+
+21
+00:01:06,596 --> 00:01:09,832
+to transform an
+ape-like creature into a human.
+
+22
+00:01:09,832 --> 00:01:12,402
+This became known as
+Haldane's dilemma, and he
+
+23
+00:01:12,402 --> 00:01:15,371
+explained it like
+this. Imagine a population of
+
+24
+00:01:15,371 --> 00:01:19,042
+100,000 ape-like
+creatures 10 million years ago,
+
+25
+00:01:19,042 --> 00:01:21,544
+more than the
+supposed time since the last common
+
+26
+00:01:21,544 --> 00:01:24,847
+ancestor of humans
+and apes. Suppose a male and
+
+27
+00:01:24,847 --> 00:01:27,850
+a female both
+received a mutation so beneficial
+
+28
+00:01:27,850 --> 00:01:33,489
+that they survived
+while the 99,998 all died
+
+29
+00:01:33,489 --> 00:01:37,026
+out. Then they had
+enough offspring to replenish the
+
+30
+00:01:37,026 --> 00:01:40,863
+population of
+100,000 in one generation. If
+
+31
+00:01:40,863 --> 00:01:44,500
+this repeated every 20
+years for 10 million years,
+
+32
+00:01:44,500 --> 00:01:47,904
+there would be
+500,000 beneficial mutations added
+
+33
+00:01:47,904 --> 00:01:52,809
+to the population. This
+amounts to only 0.02% of the
+
+34
+00:01:52,809 --> 00:01:56,045
+human genome. Even the old myth of 1-2%
+
+35
+00:01:56,045 --> 00:01:59,315
+difference between
+human and chimp DNA wouldn't work.
+
+36
+00:01:59,315 --> 00:02:01,284
+But we know the
+difference is actually at least
+
+37
+00:02:01,284 --> 00:02:05,922
+5%, or as much as 15%.
+We did an entire episode on
+
+38
+00:02:05,922 --> 00:02:11,294
+this subject titled "Chimp to Human
+DNA, Less Similar Than Previously Reported."
+
+39
+00:02:11,294 --> 00:02:13,596
+Obviously Haldane
+put forward an incredibly
+
+40
+00:02:13,596 --> 00:02:16,799
+unlikely scenario
+here. He calculated a more
+
+41
+00:02:16,799 --> 00:02:19,902
+realistic scenario
+would be one beneficial
+
+42
+00:02:19,902 --> 00:02:24,574
+mutation about every
+300 generations on average
+
+43
+00:02:24,574 --> 00:02:31,681
+for a total of 1,667 beneficial
+mutations over 10 million years. That's nothing.
+
+44
+00:02:31,681 --> 00:02:34,083
+Definitely not enough. Even if the 1%
+
+45
+00:02:34,083 --> 00:02:37,453
+difference were true,
+we'd need 30 million beneficial
+
+46
+00:02:37,453 --> 00:02:40,189
+mutations, which
+would take about 9 billion
+
+47
+00:02:40,189 --> 00:02:44,560
+generations, or 180
+billion years. That's about
+
+48
+00:02:44,560 --> 00:02:49,031
+13 times the supposed age of the
+universe according to the Big Bang Theory.
+
