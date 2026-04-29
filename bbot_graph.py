@@ -353,8 +353,18 @@ def generate(question: str, thread_id: str = "user_1"):
     )
 
     all_docs = graph_result.get("documents", [])
+    judgement = graph_result.get("judgement", "")
     chat_history = graph_result.get("chat_history", [])
     history_text = format_chat_history(chat_history)
+
+    if judgement == "not_resolved":
+        print("❌ 충분한 근거를 찾지 못함 → 답변 생성 중단\n")
+
+        return (
+            "제공된 자료만으로는 충분히 신뢰할 수 있는 답변을 드리기 어렵습니다. "
+            "질문을 조금 더 구체적으로 작성해 주시면 더 정확한 답변을 드릴 수 있습니다.",
+            {}
+        )
 
     if not all_docs:
         return "📘 관련 정보를 찾을 수 없습니다.", {}
