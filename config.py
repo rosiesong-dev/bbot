@@ -24,7 +24,7 @@ OPENAI_EMBED_DIM   = 1536
 GEMMA_API_KEY = os.getenv("GEMMA_API_KEY")
 GEMMA_BASE_URL = os.getenv("GEMMA_BASE_URL")
 GEMMA_LLM_MODEL = os.getenv("GEMMA_LLM_MODEL", "gemma-4")
-GEMMA_EMBED_MODEL = os.getenv("GEMMA_EMBED_MODEL","nomic-embed-text")
+GEMMA_EMBED_MODEL = os.getenv("GEMMA_EMBED_MODEL","text-embedding-3-small")
 GEMMA_EMBED_DIM = 2560
 
 
