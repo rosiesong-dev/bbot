@@ -1,10 +1,9 @@
 # =========================
-# DB INIT - STABLE VERSION
+# DB INIT (WORKING VERSION)
 # =========================
 
 import os
 import pdfplumber
-import pandas as pd
 import unicodedata
 from psycopg2.extras import execute_values
 
@@ -16,7 +15,7 @@ llm_model = get_llm()
 
 
 # =========================
-# EMBEDDING WRAPPER (핵심)
+# TEXT SAFE
 # =========================
 
 def safe_text(text: str, limit: int = 3000):
@@ -26,25 +25,25 @@ def safe_text(text: str, limit: int = 3000):
     return text.strip()[:limit]
 
 
+# =========================
+# EMBEDDING (FIXED CORE)
+# =========================
+
 def get_text_embedding(text: str):
-    """
-    🔥 절대 recursion 없음
-    🔥 encode 직접 호출 금지
-    """
     text = safe_text(text)
     if not text:
         return [0.0] * EMBED_DIM
 
-    # gemma (SentenceTransformer)
+    # ✅ GEMMA (sentence-transformer 계열)
     if PROVIDER == "gemma":
-        return embedding_model.encode(text).tolist()
+        return embedding_model.encode([text])[0].tolist()
 
-    # openai / upstage (LangChain)
+    # ✅ OpenAI / Upstage / LangChain
     return embedding_model.embed_query(text)
 
 
 def get_batch_embeddings(texts: list[str]):
-    texts = [safe_text(t) for t in texts if t]
+    texts = [safe_text(t) for t in texts]
     texts = [t for t in texts if t]
 
     if not texts:
@@ -57,7 +56,7 @@ def get_batch_embeddings(texts: list[str]):
 
 
 # =========================
-# TABLE CHECK
+# DB CHECK
 # =========================
 
 def table_exists(table_name: str):
@@ -143,7 +142,6 @@ def create_book_db():
                                 if not text or len(text.strip()) < 50:
                                     continue
 
-                                # 🔥 embedding (유일한 안전 호출)
                                 vec = get_text_embedding(text)
 
                                 cur.execute(f"""
@@ -171,7 +169,7 @@ def create_web_db():
     print("\n📁 WEB DB START")
 
     if not os.path.exists(WEB_FOLDER):
-        print("no web folder")
+        print("⚠️ no web folder -> skip")
         return
 
     files = [f for f in os.listdir(WEB_FOLDER) if f.endswith(".txt")]
