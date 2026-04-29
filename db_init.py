@@ -29,35 +29,39 @@ llm_model = get_llm()
 # ==================== Embedding Layer ====================
 
 def safe_text(text: str, limit: int = 3000):
+
     if not text:
+
         return None
+
     text = unicodedata.normalize("NFKC", text)
+
     return text.strip()[:limit]
 
-
 def get_text_embedding(text: str):
+
     text = safe_text(text)
+
     if not text:
+
         return [0.0] * EMBED_DIM
 
+    # gemma (SentenceTransformer)
+
     if PROVIDER == "gemma":
+
         return embedding_model.encode(text).tolist()
+
+    # openai / upstage (LangChain)
 
     return embedding_model.embed_query(text)
 
 
-def get_batch_embeddings(texts):
-    cleaned = [safe_text(t) for t in texts]
-    cleaned = [t for t in cleaned if t]
-
-    if not cleaned:
-        return []
-
+def get_batch_embeddings(texts: list[str]):
     if PROVIDER == "gemma":
-        return embedding_model.encode(cleaned, show_progress_bar=False).tolist()
+        return embedding_model.encode(texts).tolist()
 
-    return embedding_model.embed_documents(cleaned)
-
+    return embedding_model.embed_documents(texts)
 
 # ==================== Paths ====================
 BOOKS_FOLDER = "./books"
