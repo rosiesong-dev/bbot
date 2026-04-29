@@ -40,12 +40,9 @@ def get_llm():
         )
 
     elif PROVIDER == "gemma":
-        from langchain_openai import ChatOpenAI
-
-        return ChatOpenAI(
-            api_key=GEMMA_API_KEY,
-            base_url=GEMMA_BASE_URL,
-            model=GEMMA_LLM_MODEL
+        from sentence_transformers import SentenceTransformer
+        return SentenceTransformer(
+            "google/embeddinggemma-300m"
         )
 
     else:
