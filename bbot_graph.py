@@ -21,9 +21,10 @@ from bbot_video import retrieve_video_segments
 from redis_cache import get_cached_answer, save_cached_answer
 import re
 
-from semantic_cache import (
+from redis_semantic_cache import (
     search_semantic_cache,
     save_semantic_cache
+
 )
 
 
