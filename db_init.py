@@ -14,10 +14,20 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 import unicodedata
 
-from config import get_conn, EMBED_DIM
+from config import get_conn, EMBED_DIM, PROBIDER
 from llm_factory import get_embedding, get_llm
 
 embedding_model = get_embedding()
+def get_text_embedding(text):
+    if PROVIDER == "gemma":
+        return embedding_model.encode(text).tolist()
+    return embedding_model.embed_query(text)
+
+
+def get_batch_embeddings(texts):
+    if PROVIDER == "gemma":
+        return embedding_model.encode(texts).tolist()
+    return embedding_model.embed_documents(texts)
 llm_model       = get_llm()
 
 # ==================== 경로 설정 ====================
@@ -103,7 +113,7 @@ def create_web_db(folder_path: str, max_tokens: int = 4000):
                     if not title: title = fname.replace(".txt", "")
 
                     for chunk in split_text_by_tokens(content, max_tokens):
-                        vec = embedding_model.embed_query(chunk)
+                        vec = get_text_embedding(chunk)
                         cur.execute(
                             "INSERT INTO crawled_data (title, url, crawl_time, content, content_embedding) VALUES (%s,%s,%s,%s,%s::vector)",
                             (title, url, crawl_time, chunk, vec)
@@ -179,7 +189,7 @@ def create_book_db():
                                 if not text or len(text.strip()) < 50:
                                     continue
                                 try:
-                                    vec = embedding_model.embed_query(text)
+                                    vec = get_text_embedding(text)
                                 except Exception as e:
                                     print(f"      ⚠️ embedding 실패 (page {i})")
                                     vec = [0.0] * EMBED_DIM
@@ -302,7 +312,7 @@ async def process_single_video(srt_path: str, meta: dict):
     if not chunks:
         print("   ⚠️ 유효한 청크 없음"); return
 
-    vectors = embedding_model.embed_documents([c["content"] for c in chunks])
+    vectors = get_batch_embeddings([c["content"] for c in chunks])
 
     with get_conn() as conn:
         with conn.cursor() as cur:
