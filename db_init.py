@@ -34,7 +34,7 @@ def get_text_embedding(text: str):
         return [0.0] * EMBED_DIM
 
     if PROVIDER == "gemma":
-        return embedding_model.encode(text).tolist()
+        return get_text_embedding(text)
 
     return embedding_model.embed_query(text)
 
@@ -47,7 +47,7 @@ def get_batch_embeddings(texts: list[str]):
         return []
 
     if PROVIDER == "gemma":
-        return embedding_model.encode(texts).tolist()
+        return get_text_embedding(texts)
 
     return embedding_model.embed_documents(texts)
 
